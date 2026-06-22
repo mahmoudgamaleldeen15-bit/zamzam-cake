@@ -1,0 +1,30 @@
+{
+  "name": "تورتة زمزم ديزرت",
+  "short_name": "تورتة زمزم",
+  "description": "اطلب تورتتك المخصصة من زمزم ديزرت",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fdf6f0",
+  "theme_color": "#c2185b",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "https://res.cloudinary.com/dk3xw0x5v/image/upload/v1780257018/ChatGPT-Image-May-31_-2026_-04_35_35-PM_hiarbj.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://res.cloudinary.com/dk3xw0x5v/image/upload/v1780257018/ChatGPT-Image-May-31_-2026_-04_35_35-PM_hiarbj.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": [
+    "food",
+    "shopping"
+  ],
+  "id": "/"
+}

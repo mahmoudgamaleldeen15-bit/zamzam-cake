@@ -9708,26 +9708,38 @@ window.addEventListener('load', function(){ setTimeout(_setupRealtimeOrders, 120
 
 // التنقل يقرأ من الكاش فقط (المستمع اللحظي بيحدّث) — يقلّل التحميل جداً
 function loadTrackerOrders(filter){
-  try{ var c=_allCachedOrders(); if(typeof renderTrackerOrders==='function') renderTrackerOrders(c, filter); }catch(e){}
-  if(!window.__rtOrdersOn && typeof cakeDb!=='undefined' && cakeDb){
+  /* دايماً نجيب من Firebase */
+  if(typeof cakeDb!=='undefined' && cakeDb){
     cakeDb.ref('cake_orders').orderByChild('createdAt').limitToLast(80).once('value').then(function(snap){
       var orders=[]; if(snap.exists()) snap.forEach(function(ch){ var v=ch.val(); if(v) orders.push(v); });
       orders.sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
       try{ localStorage.setItem('zz_cake_orders', JSON.stringify(orders.slice(0,200))); }catch(e){}
-      renderTrackerOrders(orders, filter);
-    }).catch(function(){});
+      if(typeof renderTrackerOrders==='function') renderTrackerOrders(orders, filter);
+    }).catch(function(){
+      var c=_allCachedOrders();
+      if(typeof renderTrackerOrders==='function') renderTrackerOrders(c, filter);
+    });
+  } else {
+    var c=_allCachedOrders();
+    if(typeof renderTrackerOrders==='function') renderTrackerOrders(c, filter);
   }
 }
 function loadAdminOrders(){
-  var cached=_allCachedOrders();
-  if(typeof renderAdminOrders==='function') renderAdminOrders(cached.slice());
-  if(!window.__rtOrdersOn && typeof cakeDb!=='undefined' && cakeDb){
+  /* دايماً نجيب من Firebase (مش بس لو localStorage فاضي) */
+  if(typeof cakeDb!=='undefined' && cakeDb){
     cakeDb.ref('cake_orders').orderByChild('createdAt').limitToLast(80).once('value').then(function(snap){
       var orders=[]; if(snap.exists()) snap.forEach(function(ch){ var v=ch.val(); if(v) orders.push(v); });
       orders.sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
       try{ localStorage.setItem('zz_cake_orders', JSON.stringify(orders.slice(0,200))); }catch(e){}
-      renderAdminOrders(orders);
-    }).catch(function(){});
+      if(typeof renderAdminOrders==='function') renderAdminOrders(orders);
+    }).catch(function(){
+      /* fallback: عرض الـ cache لو Firebase فشل */
+      var cached=_allCachedOrders();
+      if(typeof renderAdminOrders==='function') renderAdminOrders(cached.slice());
+    });
+  } else {
+    var cached=_allCachedOrders();
+    if(typeof renderAdminOrders==='function') renderAdminOrders(cached.slice());
   }
 }
 

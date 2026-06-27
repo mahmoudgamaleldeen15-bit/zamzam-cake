@@ -417,9 +417,6 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
     <div style="font-size:14px;font-weight:800;color:var(--dark);margin-bottom:12px">🎂 عدد الأدوار <span class="req" style="color:var(--rose)">*</span></div>
     <div class="layers-grid" id="layersGrid">
       <div class="layer-btn selected" onclick="selectLayer(this,'دور واحد')">دور واحد</div>
-      <div class="layer-btn" onclick="selectLayer(this,'دورين')">دورين</div>
-      <div class="layer-btn" onclick="selectLayer(this,'3 أدوار')">3 أدوار</div>
-      <div class="layer-btn" onclick="selectLayer(this,'حسب الاتفاق')">حسب الاتفاق</div>
     </div>
   </div>
 
@@ -498,6 +495,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
     <div style="font-size:14px;font-weight:800;color:var(--dark);margin-bottom:12px">🍫 التغطية (Topping) — اختياري</div>
     <div class="option-grid" id="toppingGrid">
       <div class="option-btn" onclick="selectTopping(this,'كريمة')"><span class="opt-emoji">🤍</span>كريمة</div>
+      <div class="option-btn" onclick="selectTopping(this,'عجين سكر')"><span class="opt-emoji">🧁</span>عجين سكر</div>
       <div class="option-btn" onclick="selectTopping(this,'شوكليت')"><span class="opt-emoji">🍫</span>شوكليت</div>
       <div class="option-btn" onclick="selectTopping(this,'لوتس')"><span class="opt-emoji">🍪</span>لوتس</div>
       <div class="option-btn" onclick="selectTopping(this,'جالاكسي')"><span class="opt-emoji">🍬</span>جالاكسي</div>
@@ -553,9 +551,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
   </div><!-- /tier1FieldsWrap -->
 
   <!-- زرار الانتقال لمواصفات الدور الثاني (يظهر فقط عند اختيار دورين/3 أدوار) -->
-  <div id="goTier2Btn" style="display:none;margin-top:4px">
-    <button type="button" onclick="_goToTier2()" style="width:100%;padding:14px;background:linear-gradient(135deg,#c2185b,#e91e62);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;font-family:'Cairo',sans-serif">متابعة لمواصفات الدور الثاني ←</button>
-  </div>
+
 
   <!-- حاوية مواصفات الدور الثاني (تُملأ وتُعرض ديناميكياً) -->
   <div id="tier2FieldsWrap" style="display:none"></div>
@@ -1479,6 +1475,8 @@ function buildSummary() {
   // حساب هل فيه إضافات بتأثر على السعر
   // السعر يظهر بس لو الطلب عادي بدون أي إضافات
   const layerH = document.querySelector('#layerHeightGrid .option-btn.selected')?.textContent?.trim() || '';
+  const hasMultiCakes = !!(order.extraCakes && order.extraCakes.length > 0);
+
   const hasExtras = (
     (layerH && !layerH.includes('3 طبقات')) ||
     (order.filling && order.filling !== 'بدون حشو') ||
@@ -1497,22 +1495,27 @@ function buildSummary() {
     ['📅 تاريخ الاستلام', order.clientDate],
     ['⏰ وقت الاستلام', order.clientTime],
 
-    ['📐 المقاس', order.size || '—'],
-    ['🎂 عدد الأدوار', order.layers],
-    ['🍫 التوبينج', toppingText],
-    ['🍰 الكيك الداخلي', order.sponge || 'لم يُحدد'],
-    ['🍓 الحشوة', order.filling],
-    ['🎉 المناسبة', order.occasion || 'لم تُحدد'],
-    ['✨ الزينة', order.deco || 'لم تُحدد'],
-    ['✍️ الوصف', order.desc],
+    // لو في أكتر من تورتة — مش نعرض تفاصيل التورتة الأولى (في بيان التورتات فوق)
+    ...(!hasMultiCakes ? [
+      ['📐 المقاس', order.size || '—'],
+      ['🎂 عدد الأدوار', order.layers],
+      ['🍫 التوبينج', toppingText],
+      ['🍰 الكيك الداخلي', order.sponge || 'لم يُحدد'],
+      ['🍓 الحشوة', order.filling],
+      ['🎉 المناسبة', order.occasion || 'لم تُحدد'],
+      ['✨ الزينة', order.deco || 'لم تُحدد'],
+      ['✍️ الوصف', order.desc],
+    ] : []),
   ];
 
-  let html = `<div class="price-box">
+  /* hasMultiCakes تم تعريفها قبل كده فوق */
+  const priceBoxHtml = hasMultiCakes ? '' : `<div class="price-box">
     <div style="font-size:13px;opacity:.9;margin-bottom:4px">${hasExtras ? '💬 السعر' : '💰 السعر التقريبي'}</div>
     ${priceDisplay}
     <div class="price-note">${hasExtras ? 'بعض الإضافات المختارة تستلزم تسعيراً خاصاً' : 'السعر النهائي يتحدد بعد مراجعة التصميم'}</div>
-  </div>
-  <div class="card">`;
+  </div>`;
+
+  let html = priceBoxHtml + `<div class="card">`;
 
   rows.forEach(([k,v]) => {
     html += `<div class="summary-row"><span class="summary-key">${k}</span><span class="summary-val">${v||'—'}</span></div>`;
@@ -1575,24 +1578,53 @@ function submitOrder() {
   msg += '🏪 نوع الاستلام: ' + pickupLabel + '\n';
   if (orderType === 'delivery') {
     if (clientAddress) msg += '📍 العنوان: ' + clientAddress + '\n';
+    var _waDf = (typeof orderData!=='undefined'&&orderData.deliveryFee>0) ? orderData.deliveryFee : (order.deliveryFee||0);
+    if (_waDf > 0) msg += '🚚 مصاريف التوصيل: ' + _waDf + ' ج.م\n';
     if (clientLandmark) msg += '🗺️ معلم قريب: ' + clientLandmark + '\n';
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '📐 المقاس: ' + order.size + '\n';
-  msg += '🎂 الأدوار: ' + order.layers + '\n';
-  msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
-  msg += '🍫 التوبينج: ' + toppingText + '\n';
-  msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
-  msg += '🍓 الحشوة: ' + order.filling + '\n';
-  msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
-  msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
-  if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '✍️ الوصف:\n' + order.desc + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '💰 السعر التقريبي: ' + (order.sizePrice ? '~' + order.sizePrice + ' ج.م' : 'حسب الاتفاق') + '\n';
-  msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  /* البيانات من orderData (محفوظة قبل الـ reset) */
+  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
+    ? orderData.cakes
+    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
+  if (_wa_allCakes.length > 1) {
+    _wa_allCakes.forEach(function(c, ci) {
+      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
+      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
+      msg += '📐 المقاس: ' + (c.size||'') + '\n';
+      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
+      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
+      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
+      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
+      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
+      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
+      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
+      msg += '━━━━━━━━\n';
+    });
+    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
+    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  } else {
+    msg += '📐 المقاس: ' + order.size + '\n';
+    msg += '🎂 الأدوار: ' + order.layers + '\n';
+    msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
+    msg += '🍫 التوبينج: ' + toppingText + '\n';
+    msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
+    msg += '🍓 الحشوة: ' + order.filling + '\n';
+    msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
+    msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
+    if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
+  }
+  /* الوصف والسعر — بس في حالة تورتة واحدة (في الأكتر من تورتة، موجودة في كل تورتة فوق) */
+  if (_wa_allCakes.length <= 1) {
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '✍️ الوصف:\n' + order.desc + '\n';
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '💰 السعر التقريبي: ' + (order.sizePrice ? '~' + order.sizePrice + ' ج.م' : 'حسب الاتفاق') + '\n';
+    msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  } else {
+    msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  }
   msg += '━━━━━━━━━━━━━━━━\n';
   if (order.imgBase64) msg += '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)\n';
   msg += '#' + orderData.id;
@@ -2216,6 +2248,11 @@ let clientLat = null, clientLng = null;
 function toggleDeliveryFields() {
   const type = document.getElementById('orderType').value;
   document.getElementById('deliveryFields').style.display = type === 'delivery' ? 'block' : 'none';
+  if (type !== 'delivery') {
+    order.deliveryFee = 0;
+    var dfEl = document.getElementById('deliveryFee');
+    if (dfEl) dfEl.value = '';
+  }
   var otherEl = document.getElementById('otherBranchField');
   if (otherEl) otherEl.style.display = type === 'other' ? 'block' : 'none';
 }
@@ -2911,24 +2948,53 @@ function submitOrder() {
   msg += '🏪 نوع الاستلام: ' + pickupLabel + '\n';
   if (orderType === 'delivery') {
     if (clientAddress) msg += '📍 العنوان: ' + clientAddress + '\n';
+    var _waDf = (typeof orderData!=='undefined'&&orderData.deliveryFee>0) ? orderData.deliveryFee : (order.deliveryFee||0);
+    if (_waDf > 0) msg += '🚚 مصاريف التوصيل: ' + _waDf + ' ج.م\n';
     if (clientLandmark) msg += '🗺️ معلم قريب: ' + clientLandmark + '\n';
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '📐 المقاس: ' + order.size + '\n';
-  msg += '🎂 الأدوار: ' + order.layers + '\n';
-  msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
-  msg += '🍫 التوبينج: ' + toppingText + '\n';
-  msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
-  msg += '🍓 الحشوة: ' + order.filling + '\n';
-  msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
-  msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
-  if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '✍️ الوصف:\n' + order.desc + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '💰 السعر التقريبي: ' + (order.sizePrice ? '~' + order.sizePrice + ' ج.م' : 'حسب الاتفاق') + '\n';
-  msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  /* البيانات من orderData (محفوظة قبل الـ reset) */
+  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
+    ? orderData.cakes
+    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
+  if (_wa_allCakes.length > 1) {
+    _wa_allCakes.forEach(function(c, ci) {
+      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
+      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
+      msg += '📐 المقاس: ' + (c.size||'') + '\n';
+      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
+      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
+      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
+      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
+      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
+      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
+      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
+      msg += '━━━━━━━━\n';
+    });
+    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
+    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  } else {
+    msg += '📐 المقاس: ' + order.size + '\n';
+    msg += '🎂 الأدوار: ' + order.layers + '\n';
+    msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
+    msg += '🍫 التوبينج: ' + toppingText + '\n';
+    msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
+    msg += '🍓 الحشوة: ' + order.filling + '\n';
+    msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
+    msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
+    if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
+  }
+  /* الوصف والسعر — بس في حالة تورتة واحدة (في الأكتر من تورتة، موجودة في كل تورتة فوق) */
+  if (_wa_allCakes.length <= 1) {
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '✍️ الوصف:\n' + order.desc + '\n';
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '💰 السعر التقريبي: ' + (order.sizePrice ? '~' + order.sizePrice + ' ج.م' : 'حسب الاتفاق') + '\n';
+    msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  } else {
+    msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
+  }
   msg += '━━━━━━━━━━━━━━━━\n';
   if (order.imgBase64) msg += '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)\n';
   msg += '#' + orderData.id;
@@ -3552,9 +3618,16 @@ let clientLat = null, clientLng = null;
 
 function toggleDeliveryFields() {
   const type = document.getElementById('orderType').value;
-  document.getElementById('deliveryFields').style.display = type === 'delivery' ? 'block' : 'none';
+  var df = document.getElementById('deliveryFields');
+  if (df) df.style.display = type === 'delivery' ? 'block' : 'none';
   var otherEl = document.getElementById('otherBranchField');
   if (otherEl) otherEl.style.display = type === 'other' ? 'block' : 'none';
+  /* Reset fee if not delivery */
+  if (type !== 'delivery') {
+    if (typeof order !== 'undefined') order.deliveryFee = 0;
+    var feeEl = document.getElementById('deliveryFee');
+    if (feeEl) feeEl.value = '';
+  }
 }
 
 function getClientLocation() {
@@ -4597,8 +4670,7 @@ function doAdminPrint(o) {
     // ✍️ الوصف بخط كبير واضح
     (o.desc?'<div class="descbox"><div class="t">✍️ وصف التورتة المطلوب</div><div class="c">'+o.desc+'</div></div>':'')+
 
-    // 📝 ملاحظات الأدمن (لو موجودة)
-    (o.adminNote?'<div class="notebox"><div class="t">📝 ملاحظات داخلية (الأدمن)</div><div class="c">'+o.adminNote+'</div></div>':'')+
+    // ملاحظات داخلية — تظهر في ورقة المراجعة الكاملة فقط
 
     // 📱 بيانات المحفظة (لو دفع محفظة)
     (o.payMethod==='wallet'?
@@ -4776,9 +4848,16 @@ function renderAdminEditor(o){
         '<div>'+aeLabel('تاريخ الاستلام *')+aeInput('ae_date', o.clientDate, '','date')+'</div>'+
         '<div>'+aeLabel('وقت الاستلام *')+aeInput('ae_time', o.clientTime, 'مثال: 3:00 م')+'</div>'+
       '</div>'+
-      aeLabel('نوع الاستلام') + aeSel('ae_orderType', orderTypeOpts, o.orderType||'factory') +
+      aeLabel('نوع الاستلام') +
+      '<select id="ae_orderType" onchange="window._toggleAeDeliveryFee()" style="width:100%;padding:10px;background:#fff;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Cairo,sans-serif;color:#111;margin-bottom:10px">'+
+        orderTypeOpts.map(function(op){ return '<option value="'+op[0]+'"'+(op[0]===(o.orderType||'factory')?' selected':'')+'>'+op[1]+'</option>'; }).join('')+
+      '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
+      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
+        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
+        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
+      '</div>'+
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -4882,6 +4961,7 @@ function collectAdminOrder(){
   base.clientTime    = aeVal('ae_time');
   base.orderType     = aeVal('ae_orderType') || 'factory';
   base.otherBranch   = aeVal('ae_otherBranch');
+  base.deliveryFee   = parseFloat(aeVal('ae_deliveryFee')) || 0;
   base.clientAddress = aeVal('ae_address');
   base.clientLandmark= aeVal('ae_landmark');
   base.size          = aeVal('ae_size');
@@ -4898,6 +4978,7 @@ function collectAdminOrder(){
   base.dedicationChoice = ded ? 'yes' : 'none';
   base.desc          = aeVal('ae_desc');
   base.finalPrice    = aeNum('ae_finalPrice');
+  if (base.deliveryFee > 0 && base.finalPrice > 0) base.finalPrice = base.finalPrice + base.deliveryFee;
   base.deposit       = aeNum('ae_deposit');
   base.payMethod     = aeVal('ae_payMethod') || 'cash';
   base.walletName    = aeVal('ae_walletName');
@@ -5112,10 +5193,14 @@ function aeTogglePay(){
 // --- حساب المتبقي تلقائياً ---
 function aeCalcRemaining(){
   var fp=aeNum('ae_finalPrice'), dp=aeNum('ae_deposit');
-  var rem=Math.max(0, fp-dp);
+  var df=aeNum('ae_deliveryFee'); /* مصاريف التوصيل */
+  var grand = fp + df;
+  var rem=Math.max(0, grand-dp);
   var d=document.getElementById('ae_remaining_disp');
   if(d){
-    d.innerHTML='💵 الإجمالي: <b>'+fp+'</b> ج.م &nbsp;|&nbsp; عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; '+
+    var _mainLine = (fp>0&&df>0) ? ('💵 الإجمالي: <b>'+fp+'</b> + 🚚 مصاريف توصيل: <b>'+df+'</b> = <b style="color:#c2185b">'+grand+'</b> ج.م')
+        : (df>0 ? ('🚚 مصاريف توصيل: <b>'+df+'</b> ج.م') : ('💵 الإجمالي: <b>'+grand+'</b> ج.م'));
+    d.innerHTML=_mainLine+' &nbsp;|&nbsp; عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; '+
       '<span style="color:'+(rem>0?'#b91c1c':'#16a34a')+'">المتبقي: <b>'+(rem>0?(rem+' ج.م'):'مدفوع بالكامل ✅')+'</b></span>';
   }
 }
@@ -5145,9 +5230,16 @@ function renderAdminEditor(o){
       '</div>'+
       aeLabel('تاريخ الاستلام *') + aeInput('ae_date', o.clientDate, '','date') +
       aeLabel('وقت الاستلام *') + aeTimeSelects(o.clientTime) +
-      aeLabel('نوع الاستلام') + aeSel('ae_orderType', orderTypeOpts, o.orderType||'factory') +
+      aeLabel('نوع الاستلام') +
+      '<select id="ae_orderType" onchange="window._toggleAeDeliveryFee()" style="width:100%;padding:10px;background:#fff;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Cairo,sans-serif;color:#111;margin-bottom:10px">'+
+        orderTypeOpts.map(function(op){ return '<option value="'+op[0]+'"'+(op[0]===(o.orderType||'factory')?' selected':'')+'>'+op[1]+'</option>'; }).join('')+
+      '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
+      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
+        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
+        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
+      '</div>'+
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -5223,6 +5315,7 @@ function collectAdminOrder(){
   base.clientDate    = aeVal('ae_date');
   base.orderType     = aeVal('ae_orderType') || 'factory';
   base.otherBranch   = aeVal('ae_otherBranch');
+  base.deliveryFee   = parseFloat(aeVal('ae_deliveryFee')) || 0;
   base.clientAddress = aeVal('ae_address');
   base.clientLandmark= aeVal('ae_landmark');
 
@@ -5244,6 +5337,7 @@ function collectAdminOrder(){
   base.desc          = aeVal('ae_desc');
 
   base.finalPrice    = aeNum('ae_finalPrice');
+  if ((base.deliveryFee||0) > 0 && base.finalPrice > 0) base.finalPrice += base.deliveryFee;
   base.deposit       = aeNum('ae_deposit');
   base.payMethod     = aeVal('ae_payMethod') || 'cash';
   if(base.payMethod==='wallet'){
@@ -5358,7 +5452,6 @@ function doAdminPrint(o) {
       row('الزينة / الديكور', o.deco)+
       (dedic?row('💌 الإهداء', dedic):'')+
       (o.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+o.desc+'</td></tr>':'')+
-      (o.adminNote?'<tr><td>📝 ملاحظة داخلية</td><td>'+o.adminNote+'</td></tr>':'')+
     '</table></div>'+
 
     // ===== 4) ميعاد الاستلام =====
@@ -5911,16 +6004,19 @@ function aeItemsTotal(){ return _aeItems.reduce(function(s,it){ return s + ((+it
 function aeRecalcAll(){
   var cakePrice = aeNum('ae_finalPrice');
   var itemsTotal = aeItemsTotal();
-  var grand = cakePrice + itemsTotal;
+  var df = aeNum('ae_deliveryFee');
+  var grand = cakePrice + itemsTotal + df;
   var dp = aeNum('ae_deposit');
   var rem = Math.max(0, grand - dp);
   var sub=document.getElementById('ae_items_subtotal'); if(sub) sub.textContent = itemsTotal + ' ج.م';
   var d=document.getElementById('ae_remaining_disp');
   if(d){
     var breakdown = (itemsTotal>0)
-      ? '🎂 التورتة: <b>'+cakePrice+'</b> + 🧁 طلبات أخرى: <b>'+itemsTotal+'</b> = '
-      : '';
-    d.innerHTML = breakdown + '💰 الإجمالي: <b>'+grand+'</b> ج.م<br>'+
+      ? '🎂 التورتة: <b>'+cakePrice+'</b> + 🧁 طلبات أخرى: <b>'+itemsTotal+'</b>'+(df>0?' + 🚚 توصيل: <b>'+df+'</b>':'')+' = '
+      : (df>0?'🚚 توصيل: <b>'+df+'</b> ج.م &nbsp;+&nbsp; ':'');
+    var _bk2 = (breakdown&&grand>df) ? (breakdown+(df>0?' + 🚚 مصاريف توصيل: <b>'+df+'</b>':'')+' = 💰 <b style="color:#c2185b">'+grand+'</b> ج.م')
+        : (df>0 ? ('🚚 مصاريف توصيل: <b>'+df+'</b> ج.م') : ('💰 <b>'+grand+'</b> ج.م'));
+    d.innerHTML = _bk2+'<br>'+
       'عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; '+
       '<span style="color:'+(rem>0?'#b91c1c':'#16a34a')+'">المتبقي: <b>'+(rem>0?(rem+' ج.م'):'مدفوع بالكامل ✅')+'</b></span>';
   }
@@ -5953,9 +6049,16 @@ function renderAdminEditor(o){
       '</div>'+
       aeLabel('تاريخ الاستلام *') + aeInput('ae_date', o.clientDate, '','date') +
       aeLabel('وقت الاستلام *') + aeTimeSelects(o.clientTime) +
-      aeLabel('نوع الاستلام') + aeSel('ae_orderType', orderTypeOpts, o.orderType||'factory') +
+      aeLabel('نوع الاستلام') +
+      '<select id="ae_orderType" onchange="window._toggleAeDeliveryFee()" style="width:100%;padding:10px;background:#fff;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:Cairo,sans-serif;color:#111;margin-bottom:10px">'+
+        orderTypeOpts.map(function(op){ return '<option value="'+op[0]+'"'+(op[0]===(o.orderType||'factory')?' selected':'')+'>'+op[1]+'</option>'; }).join('')+
+      '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
+      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
+        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
+        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
+      '</div>'+
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -6045,6 +6148,7 @@ function collectAdminOrder(){
   base.clientDate    = aeVal('ae_date');
   base.orderType     = aeVal('ae_orderType') || 'factory';
   base.otherBranch   = aeVal('ae_otherBranch');
+  base.deliveryFee   = parseFloat(aeVal('ae_deliveryFee')) || 0;
   base.clientAddress = aeVal('ae_address');
   base.clientLandmark= aeVal('ae_landmark');
 
@@ -6075,7 +6179,7 @@ function collectAdminOrder(){
   // الفاتورة المجمّعة: سعر التورتة + الطلبات الأخرى
   var cakePrice = aeNum('ae_finalPrice');
   base.cakePrice  = cakePrice;
-  base.finalPrice = cakePrice + itemsTotal; // الإجمالي الكلي
+  base.finalPrice = cakePrice + itemsTotal + (base.deliveryFee||0); // الإجمالي الكلي + مصاريف توصيل
   base.deposit    = aeNum('ae_deposit');
   base.payMethod  = aeVal('ae_payMethod') || 'cash';
   if(base.payMethod==='wallet'){
@@ -6372,10 +6476,11 @@ function aeApplyVipDiscount(){
 function aeRecalcAll(){
   var cakePrice=aeNum('ae_finalPrice');
   var itemsTotal=(typeof aeItemsTotal==='function')?aeItemsTotal():0;
+  var df=aeNum('ae_deliveryFee');
   var subtotal=cakePrice+itemsTotal;
   var discount=aeNum('ae_discount');
   if(discount>subtotal) discount=subtotal;
-  var grand=Math.max(0, subtotal-discount);
+  var grand=Math.max(0, subtotal-discount) + df;
   var dp=aeNum('ae_deposit');
   var rem=Math.max(0, grand-dp);
   var sub=document.getElementById('ae_items_subtotal'); if(sub) sub.textContent=itemsTotal+' ج.م';
@@ -6383,7 +6488,9 @@ function aeRecalcAll(){
   if(d){
     var bd=(itemsTotal>0)?('🎂 التورتة: <b>'+cakePrice+'</b> + 🧁 طلبات أخرى: <b>'+itemsTotal+'</b><br>'):'';
     var ds=(discount>0)?(' − 🏷️ خصم: <b>'+discount+'</b>'):'';
-    d.innerHTML = bd + '💰 الإجمالي: <b>'+subtotal+'</b>'+ds+' = <b>'+grand+'</b> ج.م<br>'+
+    var _bk3 = (subtotal>0) ? ('💰 الإجمالي: <b>'+subtotal+'</b>'+ds+(df>0?' + 🚚 مصاريف توصيل: <b>'+df+'</b>':'')+' = <b style="color:#c2185b">'+grand+'</b> ج.م')
+        : (df>0 ? ('🚚 مصاريف توصيل: <b>'+df+'</b> ج.م') : ('💰 <b>0</b> ج.م'));
+    d.innerHTML = bd + _bk3+'<br>'+
       'عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; <span style="color:'+(rem>0?'#b91c1c':'#16a34a')+'">المتبقي: <b>'+(rem>0?(rem+' ج.م'):'مدفوع بالكامل ✅')+'</b></span>';
   }
 }
@@ -6424,7 +6531,7 @@ function aeRecalcAll(){
       if(discount>subtotal) discount=subtotal;
       base.subtotal=subtotal;
       base.discount=discount;
-      base.finalPrice=Math.max(0, subtotal-discount);
+      base.finalPrice=Math.max(0, subtotal-discount) + (base.deliveryFee||0);
       base.vip=isVipPhone(base.clientPhone);
       return base;
     };
@@ -6556,6 +6663,25 @@ function doAdminPrint(o){
     '</table></div>';
   }
   function cakeBlock(){
+    /* Multi-cake: show each cake in its own section */
+    if(o.cakes && o.cakes.length > 1){
+      var _out = o.cakes.map(function(c,i){
+        return '<div class="section" style="border:2px solid #e91e62">'+
+          '<div class="section-title">🎂 تورتة '+(i+1)+(c.sizePrice?' — ~'+c.sizePrice+' ج.م':'')+
+          '</div><table>'+
+          row('المقاس', c.size)+row('عدد الأدوار', c.layers||'دور واحد')+
+          row('📏 ارتفاع الدور', c.layerHeight)+row('التوبينج', c.topping)+
+          row('الكيك الداخلي', c.sponge)+row('الحشوة', c.filling||'بدون حشو')+
+          row('المناسبة', c.occasion)+row('الزينة', c.deco)+
+          (c.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+c.desc+'</td></tr>':'')+
+          '</table></div>';
+      }).join('');
+      var _tp = o.cakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
+      if(_tp>0) _out += '<div class="section" style="border:2px solid #16a34a;background:#f0fdf4">'+
+        '<div class="section-title" style="color:#16a34a">💰 إجمالي التورتات: '+_tp+' ج.م</div></div>';
+      return _out;
+    }
+    /* Single cake */
     return '<div class="section"><div class="section-title">🎂 مواصفات التورتة</div><table>'+
       row('المقاس', o.size)+row('عدد الأدوار', o.layers)+row('📏 ارتفاع الدور', o.layerHeight)+
       row('التوبينج', o.topping)+row('الكيك الداخلي', o.sponge)+row('الحشوة', o.filling||'بدون حشو')+
@@ -6564,7 +6690,6 @@ function doAdminPrint(o){
       row('المناسبة', o.occasion)+row('الزينة / الديكور', o.deco)+
       (dedic?row('💌 الإهداء', dedic):'')+
       (o.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+o.desc+'</td></tr>':'')+
-      (o.adminNote?'<tr><td>📝 ملاحظة داخلية</td><td>'+o.adminNote+'</td></tr>':'')+
     '</table></div>';
   }
   function itemBlock(it){
@@ -6576,7 +6701,6 @@ function doAdminPrint(o){
         '<tr><td>سعر الوحدة</td><td>'+it.price+' ج.م</td></tr>'+
         '<tr><td>إجمالي الصنف</td><td style="color:#15803d">'+(it.total||0)+' ج.م</td></tr>'+
       '</table>'+
-      (o.adminNote?'<table><tr><td>📝 ملاحظة</td><td>'+o.adminNote+'</td></tr></table>':'')+
     '</div>';
   }
   function itemsTable(){
@@ -6590,15 +6714,16 @@ function doAdminPrint(o){
   }
   function bands(){
     return '<div class="band"><div class="lbl">⏰ ميعاد الاستلام</div><div class="val">'+dateLine+' — الساعة '+timeLine+'</div></div>'+
-           (typeof _allCakesHTML==='function'&&o.cakes&&o.cakes.length>1?'<div style="margin:6px 0">'+_allCakesHTML(o)+'</div>':'')+(typeof _coat1HTML==='function'&&o.coating1?'<div style="margin:6px 0">'+_coat1HTML(o)+'</div>':'')+(typeof _cream1HTML==='function'&&o.creamColor1?'<div style="margin:6px 0">'+_cream1HTML(o)+'</div>':'')+(typeof _tier2HTML==='function'&&o.tier2?'<div style="margin:6px 0">'+_tier2HTML(o)+'</div>':'')+'<div class="placeband"><div class="lbl">📍 مكان الاستلام</div><div class="val">'+placeDetail+'</div></div>';
+           /* _allCakesHTML removed — cakeBlock() already shows all cakes */(typeof _coat1HTML==='function'&&o.coating1&&!(o.cakes&&o.cakes.length>1)?'<div style="margin:6px 0">'+_coat1HTML(o)+'</div>':'')+(typeof _cream1HTML==='function'&&o.creamColor1&&!(o.cakes&&o.cakes.length>1)?'<div style="margin:6px 0">'+_cream1HTML(o)+'</div>':'')+(typeof _tier2HTML==='function'&&o.tier2?'<div style="margin:6px 0">'+_tier2HTML(o)+'</div>':'')+'<div class="placeband"><div class="lbl">📍 مكان الاستلام</div><div class="val">'+placeDetail+'</div></div>';
   }
   function priceBox(){
     if(!(o.finalPrice>0)) return '';
     var priceBreak = (hasItems && o.cakePrice!=null && o.cakePrice>0) ? '<div class="price-sub">🎂 التورتة: '+o.cakePrice+' ج + 🧁 طلبات أخرى: '+(o.itemsTotal||0)+' ج</div>' : '';
     var discLine = (o.discount>0) ? '<div class="price-sub" style="color:#b45309">🏷️ خصم VIP: −'+o.discount+' ج.م (قبل الخصم: '+((o.subtotal!=null?o.subtotal:(o.finalPrice+(o.discount||0))))+' ج.م)</div>' : '';
+    var _dfLine = (o.deliveryFee>0) ? '<div class="price-sub" style="color:#c2185b">🚚 مصاريف التوصيل: +'+o.deliveryFee+' ج.م</div>' : '';
     return '<div class="price-box">'+
       '<div class="lbl">💰 إجمالي الفاتورة</div>'+
-      '<div class="price-main">'+o.finalPrice+' ج.م</div>'+ priceBreak + discLine +
+      '<div class="price-main">'+o.finalPrice+' ج.م</div>'+ priceBreak + discLine + _dfLine +
       '<div class="price-sub">العربون المدفوع: '+(o.deposit||0)+' ج.م '+(o.payMethod==='wallet'?'• 📱 محفظة':'• 💵 كاش')+'</div>'+
       (o.payMethod==='wallet'?'<div style="background:#fff;border:1px solid #c7e9d0;border-radius:8px;padding:6px 8px;margin:4px 0;font-size:12px;font-weight:800;color:#111;text-align:center">📱 '+(o.walletName||'محفظة')+' — '+(o.walletNum||'-')+' — 👤 مسؤول: '+(o.walletMgr||'-')+(o.walletAmount?' — حُوِّل: '+o.walletAmount+' ج.م':'')+(o.sourceNumber?' — 📲 محوّل من: '+o.sourceNumber:'')+'</div>':'')+
       '<div class="remaining">المتبقي عند الاستلام: '+(remaining>0?remaining+' ج.م':'مدفوع بالكامل ✅')+'</div>'+
@@ -6645,10 +6770,11 @@ function doAdminPrint(o){
   var body;
   if(!hasItems){
     // ===== ورقة واحدة (تورتة فقط) — زي ما هي =====
+    var _noteBlock = (o.adminNote?'<div class="section" style="border:2px solid #f59e0b;background:#fffbeb"><div class="section-title" style="color:#b45309">📝 ملاحظات داخلية</div><div style="font-size:14px;line-height:1.7;color:#111;white-space:pre-wrap">'+o.adminNote+'</div></div>':'');
     body = '<div class="page">'+
       '<h2>🎂 زمزم ديزرت</h2>'+
       '<div class="sub">'+(hasCake?'طلب تورتة سبيشيال':'فاتورة طلب')+' — '+(o.id||'')+'</div>'+
-      statusHTML()+ clientBlock()+ (hasCake?cakeBlock():'')+ bands()+ priceBox()+ imgBlock+ footer+
+      statusHTML()+ clientBlock()+ (hasCake?cakeBlock():'')+ _noteBlock+ bands()+ priceBox()+ imgBlock+ footer+
     '</div>';
   } else {
     // ===== تنسيق تلقائي: كل قسم في ورقة + ورقة مراجعة شاملة =====
@@ -6660,7 +6786,8 @@ function doAdminPrint(o){
       pages += '<div class="page">'+ linkHdr('🧁 قسم: '+it.name)+ statusHTML()+ itemBlock(it)+ '</div>';
     });
     // ورقة المراجعة الشاملة (الأخيرة)
-    pages += '<div class="page">'+ linkHdr('📋 ورقة المراجعة الكاملة')+ statusHTML()+ clientBlock()+ (hasCake?cakeBlock():'')+ itemsTable()+ bands()+ priceBox()+ footer+ '</div>';
+    var _revNote = o.adminNote ? '<div class="section" style="border:2px solid #f59e0b;background:#fffbeb"><div class="section-title" style="color:#b45309">📝 ملاحظات داخلية</div><div style="font-size:14px;line-height:1.7;white-space:pre-wrap">'+o.adminNote+'</div></div>' : '';
+    pages += '<div class="page">'+ linkHdr('📋 ورقة المراجعة الكاملة')+ statusHTML()+ clientBlock()+ (hasCake?cakeBlock():'')+ imgBlock+ itemsTable()+ _revNote+ bands()+ priceBox()+ footer+ '</div>';
     body = pages;
   }
 
@@ -6886,6 +7013,9 @@ async function submitOrder() {
   order.dedicationChoice = document.getElementById('dedicationChoice') ? document.getElementById('dedicationChoice').value : 'none';
   order.dedicationText = (order.dedicationChoice==='yes' && document.getElementById('dedicationText')) ? document.getElementById('dedicationText').value.trim() : '';
   if (typeof personsCount!=='undefined') order.persons = personsCount;
+  /* Capture delivery fee */
+  var _dfEl = document.getElementById('deliveryFee');
+  order.deliveryFee = _dfEl ? (parseFloat(_dfEl.value) || 0) : 0;
 
   try { if(typeof _finalizeCakes==='function') _finalizeCakes(); } catch(e){}
   const orderData = { ...order, topping: toppingText, id: 'CAKE-'+Date.now(), createdAt: new Date().toISOString() };
@@ -6920,23 +7050,49 @@ async function submitOrder() {
   msg += '🏪 نوع الاستلام: ' + pickupLabel + '\n';
   if (orderType === 'delivery') {
     if (clientAddress) msg += '📍 العنوان: ' + clientAddress + '\n';
+    var _waDf = (typeof orderData!=='undefined'&&orderData.deliveryFee>0) ? orderData.deliveryFee : (order.deliveryFee||0);
+    if (_waDf > 0) msg += '🚚 مصاريف التوصيل: ' + _waDf + ' ج.م\n';
     if (clientLandmark) msg += '🗺️ معلم قريب: ' + clientLandmark + '\n';
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '📐 المقاس: ' + order.size + '\n';
-  msg += '🎂 الأدوار: ' + order.layers + '\n';
-  if (order.height1) msg += '📐 ارتفاع الدور الأول: ' + order.height1 + '\n';
-  msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
-  msg += '🍫 التوبينج: ' + toppingText + '\n';
-  msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
-  msg += '🍓 الحشوة: ' + order.filling + '\n';
-  msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
-  msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
+  /* البيانات من orderData (محفوظة قبل الـ reset) */
+  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
+    ? orderData.cakes
+    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
+  if (_wa_allCakes.length > 1) {
+    _wa_allCakes.forEach(function(c, ci) {
+      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
+      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
+      msg += '📐 المقاس: ' + (c.size||'') + '\n';
+      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
+      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
+      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
+      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
+      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
+      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
+      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
+      msg += '━━━━━━━━\n';
+    });
+    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
+    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  } else {
+    msg += '📐 المقاس: ' + order.size + '\n';
+    msg += '🎂 الأدوار: ' + order.layers + '\n';
+    msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
+    msg += '🍫 التوبينج: ' + toppingText + '\n';
+    msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
+    msg += '🍓 الحشوة: ' + order.filling + '\n';
+    msg += '🎉 المناسبة: ' + (order.occasion || 'لم تُحدد') + '\n';
+    msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
+    if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
+  }
   if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
-  msg += '✍️ الوصف:\n' + order.desc + '\n';
-  msg += '━━━━━━━━━━━━━━━━\n';
+  if (_wa_allCakes.length <= 1) {
+    msg += '━━━━━━━━━━━━━━━━\n';
+    msg += '✍️ الوصف:\n' + order.desc + '\n';
+    msg += '━━━━━━━━━━━━━━━━\n';
+  }
   if (typeof classifyCustomerOrder==='function' && classifyCustomerOrder()==='special') {
     msg += '🔶 طلب خاص — السعر يتحدد بعد المراجعة والموافقة\n';
   } else {
@@ -8224,7 +8380,15 @@ function injectDepositUI(){
   var box=document.getElementById('summaryContent'); if(!box) return;
   if(document.getElementById('dep_block')) return;
   if(!depositApplies()) return;
-  var c=getDepositCfg(); var total=+order.sizePrice; var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
+  var c=getDepositCfg();
+  /* حساب الإجمالي الصحيح: جمع كل التورتات */
+  var _cakeTotal = +order.sizePrice || 0;
+  if (order.extraCakes && order.extraCakes.length > 0) {
+    var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
+    _cakeTotal = _cakeTotal + _extraSum;
+  }
+  var total = _cakeTotal;
+  var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
   var ws=getCakeWallets();
   var walletField = ws.length
     ? '<label style="display:block;font-size:12px;font-weight:800;color:#3730a3;margin:12px 0 4px">🏦 اختر المحفظة اللي هتحوّل عليها *</label>'+
@@ -8362,13 +8526,37 @@ function showFullOrderDetail(id){
       rowD('👤 الاسم', o.clientName)+rowD('📱 الهاتف', o.clientPhone)+rowD('💬 واتساب', o.clientWa)+
       rowD('📅 التاريخ', o.clientDate)+rowD('⏰ الوقت',(typeof to12Hour==='function'?to12Hour(o.clientTime):o.clientTime))+
       (o.clientAddress?rowD('📍 العنوان', o.clientAddress):'')+
+    (o.deliveryFee>0?rowD('🚚 مصاريف التوصيل', o.deliveryFee+' ج.م'):'')+
     '</div>'+
-    (o.size?'<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+
-      '<div style="font-weight:900;color:var(--rose-dark);margin-bottom:4px;font-size:13px">🎂 التورتة</div>'+
-      rowD('المقاس', o.size)+rowD('الأدوار', o.layers)+rowD('الارتفاع', o.layerHeight)+rowD('التوبينج', o.topping)+rowD('الكيك', o.sponge)+rowD('الحشوة', o.filling)+rowD('المناسبة', o.occasion)+rowD('الزينة', o.deco)+
-      (o.dedicationText?rowD('💌 الإهداء', o.dedicationText):'')+
-      (o.desc?'<div style="margin-top:6px;background:#fdf6e3;border-radius:8px;padding:8px;font-size:12px"><b>الوصف:</b> '+o.desc+'</div>':'')+
-    '</div>':'')+
+    (function(){
+      /* Multi-cake: show each cake separately */
+      if(o.cakes && o.cakes.length > 1){
+        return o.cakes.map(function(c, i){
+          return '<div style="background:#fff;border:2px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+
+            '<div style="font-weight:900;color:var(--rose-dark);margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between">'+
+              '<span>🎂 تورتة '+(i+1)+'</span>'+
+              (c.sizePrice?'<span style="color:#16a34a">~'+c.sizePrice+' ج.م</span>':'')+
+            '</div>'+
+            rowD('المقاس', c.size)+rowD('الأدوار', c.layers)+rowD('الارتفاع', c.layerHeight)+
+            rowD('التوبينج', c.topping)+rowD('الكيك', c.sponge)+rowD('الحشوة', c.filling)+
+            rowD('المناسبة', c.occasion)+rowD('الزينة', c.deco)+
+            (c.dedicationText?rowD('💌 الإهداء', c.dedicationText):'')+
+            (c.desc?'<div style="margin-top:6px;background:#fdf6e3;border-radius:8px;padding:8px;font-size:12px"><b>الوصف:</b> '+c.desc+'</div>':'')+
+          '</div>';
+        }).join('') +
+        '<div style="background:#f0fdf4;border:2px solid #16a34a;border-radius:12px;padding:10px 14px;margin-bottom:10px;text-align:center">'+
+          '<div style="font-size:12px;color:#555;font-weight:700">إجمالي التورتات ('+ o.cakes.length +')</div>'+
+          '<div style="font-size:20px;font-weight:900;color:#16a34a">'+(o.cakes.reduce(function(s,c){return s+(+c.sizePrice||0);},0))+' ج.م</div>'+
+        '</div>';
+      }
+      /* Single cake: original display */
+      return o.size?'<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+
+        '<div style="font-weight:900;color:var(--rose-dark);margin-bottom:4px;font-size:13px">🎂 التورتة</div>'+
+        rowD('المقاس', o.size)+rowD('الأدوار', o.layers)+rowD('الارتفاع', o.layerHeight)+rowD('التوبينج', o.topping)+rowD('الكيك', o.sponge)+rowD('الحشوة', o.filling)+rowD('المناسبة', o.occasion)+rowD('الزينة', o.deco)+
+        (o.dedicationText?rowD('💌 الإهداء', o.dedicationText):'')+
+        (o.desc?'<div style="margin-top:6px;background:#fdf6e3;border-radius:8px;padding:8px;font-size:12px"><b>الوصف:</b> '+o.desc+'</div>':'')+
+      '</div>':'';
+    })()+
     ((itemsHtml||payHtml)?'<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+itemsHtml+
       '<div style="display:flex;justify-content:space-between;font-weight:900;color:#15803d;border-top:1px solid #eee;margin-top:6px;padding-top:6px;font-size:13px"><span>الإجمالي</span><span>'+(o.finalPrice||0)+' ج.م</span></div>'+
       payHtml+'</div>':'')+
@@ -8512,7 +8700,15 @@ function injectDepositUI(){
     return;
   }
   if(!depositApplies()) return;
-  var c=getDepositCfg(); var total=+order.sizePrice; var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
+  var c=getDepositCfg();
+  /* حساب الإجمالي الصحيح: جمع كل التورتات */
+  var _cakeTotal = +order.sizePrice || 0;
+  if (order.extraCakes && order.extraCakes.length > 0) {
+    var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
+    _cakeTotal = _cakeTotal + _extraSum;
+  }
+  var total = _cakeTotal;
+  var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
   var ws=getCakeWallets();
   var walletField = ws.length
     ? '<label style="display:block;font-size:12px;font-weight:800;color:#3730a3;margin:12px 0 4px">🏦 اختر المحفظة اللي هتحوّل عليها *</label>'+
@@ -9386,7 +9582,15 @@ function injectDepositUI(){
     return;
   }
   if(!depositApplies()) return;
-  var c=getDepositCfg(); var total=+order.sizePrice; var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
+  var c=getDepositCfg();
+  /* حساب الإجمالي الصحيح: جمع كل التورتات */
+  var _cakeTotal = +order.sizePrice || 0;
+  if (order.extraCakes && order.extraCakes.length > 0) {
+    var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
+    _cakeTotal = _cakeTotal + _extraSum;
+  }
+  var total = _cakeTotal;
+  var dep=Math.round(total*(c.pct||50)/100); var rem=total-dep;
   var ws=getCakeWallets();
   var walletField = ws.length
     ? '<label style="display:block;font-size:12px;font-weight:800;color:#3730a3;margin:12px 0 4px">🏦 اختر المحفظة اللي هتحوّل عليها *</label><select id="dep_wallet" onchange="depWalletInfo()" style="width:100%;padding:10px;border:1.5px solid #818cf8;border-radius:10px;font-size:14px;font-family:Cairo,sans-serif"><option value="">— اختر المحفظة —</option>'+ ws.map(function(w,i){ return '<option value="'+i+'">'+w.name+' — '+w.num+'</option>'; }).join('') +'</select><div id="dep_wallet_info" style="display:none;margin-top:8px;padding:9px;background:#fff;border:1.5px dashed #818cf8;border-radius:10px;font-size:13px;font-weight:800;color:#3730a3"></div>'
@@ -10476,8 +10680,9 @@ function injectCream1Summary(){
 // ============================================================
 var _COATINGS=['كريمة','عجين سكر'];
 
-// --- الدور الأول: كارت شكل التغطية ---
+// --- الدور الأول: كارت شكل التغطية --- (محذوف حسب طلب المسؤول)
 function _ensureCoat1Card(){
+  return; // تعطيل - شكل التغطية محذوف
   if(document.getElementById('coat1Card')) return;
   var host=document.getElementById('tier1FieldsWrap'); if(!host) return;
   var btns=_COATINGS.map(function(c){ return '<div class="option-btn coat1-btn" onclick="_setCoat1(this,\''+c+'\')"><span class="opt-emoji">'+(c==='كريمة'?'🤍':'🧁')+'</span>'+c+'</div>'; }).join('');
@@ -11756,6 +11961,49 @@ function _toggleExtraCostNotice(anchorEl, noticeId, show){
   }
 })();
 
+</script>
+<script>
+(function(){
+  var _orig=window.selectLayer;
+  window.selectLayer=function(el,val){if(val!=='دور واحد')return;if(_orig)_orig(el,'دور واحد');};
+  function lock(){
+    var t2=document.getElementById('tier2FieldsWrap');var t2b=document.getElementById('goTier2Btn');var lbl=document.getElementById('tier1Label');
+    if(t2){t2.style.display='none';t2.innerHTML='';}if(t2b)t2b.style.display='none';if(lbl)lbl.style.display='none';
+    if(typeof order!=='undefined'){order.layers='دور واحد';delete order.tier2;}
+  }
+  document.addEventListener('DOMContentLoaded',lock);setInterval(lock,800);
+  window._showTier2=lock;window._goToTier2=lock;
+})();
+</script>
+
+<script>
+/* Hide cream1Card + coat1Card when multi-cake */
+(function(){
+  function hideCakeCardsIfMulti(){
+    if(typeof order==='undefined') return;
+    var multi = order.extraCakes && order.extraCakes.length > 0;
+    ['cream1Card','coat1Card'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) el.style.display = multi ? 'none' : '';
+    });
+  }
+  setInterval(hideCakeCardsIfMulti, 600);
+})();
+</script>
+
+<script>
+/* Show/hide delivery fee row in admin edit form */
+window._toggleAeDeliveryFee = function() {
+  var sel = document.getElementById('ae_orderType');
+  var row = document.getElementById('ae_dfRow');
+  if (!sel || !row) return;
+  var isDelivery = sel.value === 'delivery';
+  row.style.display = isDelivery ? 'block' : 'none';
+  if (!isDelivery) {
+    var inp = document.getElementById('ae_deliveryFee');
+    if (inp) inp.value = '0';
+  }
+};
 </script>
 </body>
 </html>

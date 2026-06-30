@@ -415,8 +415,9 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
   <!-- LAYERS (أول خطوة) -->
   <div class="card">
     <div style="font-size:14px;font-weight:800;color:var(--dark);margin-bottom:12px">🎂 عدد الأدوار <span class="req" style="color:var(--rose)">*</span></div>
-    <div class="layers-grid" id="layersGrid">
+    <div class="layers-grid" id="layersGrid" style="grid-template-columns:1fr 1fr">
       <div class="layer-btn selected" onclick="selectLayer(this,'دور واحد')">دور واحد</div>
+      <div class="layer-btn" onclick="openSpecialTierModal()" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border:2px dashed #e91e62;color:#c2185b;font-weight:900;cursor:pointer">✨ مقاس خاص<br><span style="font-size:10px;font-weight:600">تورتة متعددة الأدوار</span></div>
     </div>
   </div>
 
@@ -487,6 +488,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
         <div class="size-label">40×60 سم</div>
         <div class="size-price">~ 1750 جـ</div>
       </div>
+
     </div>
   </div>
 
@@ -949,7 +951,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
       </div>
       <div class="card">
         <div style="font-size:14px;font-weight:800;margin-bottom:4px">🔐 أمان كلمة سر الأدمن</div>
-        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5">باسورد الأدمن مشفّر لتغييره لازم تكتب <b>كلمة سر الأمان</b> الأول.</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5">باسورد الأدمن مشفّر ومخزّن على Firebase. لتغييره لازم تكتب <b>كلمة سر الأمان</b> الأول.</div>
         <div class="field"><label>🔑 كلمة سر الأمان (للتأكيد)</label><input type="password" id="securityPassInput" placeholder="كلمة سر الأمان"/></div>
         <div class="field"><label>كلمة سر الأدمن الجديدة</label><input type="password" id="newPassInput" placeholder="4 أحرف على الأقل"/></div>
         <div class="field"><label>تأكيد كلمة السر الجديدة</label><input type="password" id="confirmPassInput" placeholder="أعد كتابة كلمة السر"/></div>
@@ -1347,7 +1349,7 @@ function validateStep() {
     order.clientTime = h + ':' + min + ' ' + ampm;
   }
   if (currentStep === 2) {
-    if (!order.size) { showToast('❌ اختر مقاس التورتة'); return false; }
+    if (!order.size && !order.isSpecialTier) { showToast('❌ اختر مقاس التورتة'); return false; }
   }
   if (currentStep === 3) {
     if (!document.getElementById('cakeDesc').value.trim()) { showToast('❌ وصف التورتة مطلوب'); return false; }
@@ -1495,8 +1497,7 @@ function buildSummary() {
     ['📅 تاريخ الاستلام', order.clientDate],
     ['⏰ وقت الاستلام', order.clientTime],
 
-    // لو في أكتر من تورتة — مش نعرض تفاصيل التورتة الأولى (في بيان التورتات فوق)
-    ...(!hasMultiCakes ? [
+    ...(!hasMultiCakes && !(order.isSpecialTier) ? [
       ['📐 المقاس', order.size || '—'],
       ['🎂 عدد الأدوار', order.layers],
       ['🍫 التوبينج', toppingText],
@@ -1505,16 +1506,16 @@ function buildSummary() {
       ['🎉 المناسبة', order.occasion || 'لم تُحدد'],
       ['✨ الزينة', order.deco || 'لم تُحدد'],
       ['✍️ الوصف', order.desc],
+    ] : order.isSpecialTier ? [
+      ['📐 المقاس', order.size],
     ] : []),
   ];
 
-  /* hasMultiCakes تم تعريفها قبل كده فوق */
   const priceBoxHtml = hasMultiCakes ? '' : `<div class="price-box">
     <div style="font-size:13px;opacity:.9;margin-bottom:4px">${hasExtras ? '💬 السعر' : '💰 السعر التقريبي'}</div>
     ${priceDisplay}
     <div class="price-note">${hasExtras ? 'بعض الإضافات المختارة تستلزم تسعيراً خاصاً' : 'السعر النهائي يتحدد بعد مراجعة التصميم'}</div>
   </div>`;
-
   let html = priceBoxHtml + `<div class="card">`;
 
   rows.forEach(([k,v]) => {
@@ -1526,6 +1527,32 @@ function buildSummary() {
   }
 
   html += '</div>';
+  /* SPECIAL TIER: prepend tier details */
+  if (order.isSpecialTier && order.tiers && order.tiers.length) {
+    var _tN=['الأول','الثاني','الثالث','الرابع','الخامس'];
+    var stHtml='<div style="background:#fff0f5;border:2px solid #e91e62;border-radius:14px;padding:14px;margin-bottom:14px">'+
+      '<div style="font-weight:900;color:#c2185b;font-size:14px;margin-bottom:10px">✨ تورتة خاصة — '+order.tiers.length+' أدوار</div>';
+    var row2=function(k,v){return '<tr><td style="padding:3px 8px;color:#888;width:42%;font-size:12px">'+k+'</td><td style="padding:3px 8px;font-weight:700;font-size:12px">'+v+'</td></tr>';};
+    order.tiers.forEach(function(t,i){
+      stHtml+='<div style="background:#fff;border:1.5px solid #f9a8d4;border-radius:10px;padding:10px;margin-bottom:8px">'+
+        '<div style="font-weight:800;color:#be185d;font-size:13px;margin-bottom:6px">الدور '+(_tN[i]||i+1)+'</div>'+
+        '<table style="width:100%;border-collapse:collapse">'+
+        (t.type?row2('نوع',t.type):'')+
+        (t.diameter?row2('قطر',t.diameter+' سم'):'')+
+        (t.height?row2('الطبقات',t.height):'')+
+        (t.topping?row2('توبينج',t.topping+(t.customTopping?' ('+t.customTopping+')':'')):'')+
+        (t.color?row2('لون',t.color):'')+
+        (t.sponge?row2('إسبونش',t.sponge):'')+
+        (t.filling&&t.filling!=='بدون حشو'?row2('حشو',t.filling):'')+
+        (t.deco?row2('زينة',t.deco+(t.decoText?' — '+t.decoText:'')):'')+
+        (t.tierNotes?row2('ملاحظات',t.tierNotes):'')+
+        '</table></div>';
+    });
+    if(order.specialNotes) stHtml+='<div style="background:#fdf6e3;border-radius:8px;padding:8px;font-size:12px;margin-top:4px"><b>ملاحظات عامة:</b> '+order.specialNotes+'</div>';
+    stHtml+='<div style="text-align:center;margin-top:10px;padding:8px;background:#ffe4f2;border-radius:8px;font-size:12px;color:#be185d;font-weight:700">⚠️ السعر يتحدد بعد المراجعة</div>';
+    stHtml+='</div>';
+    html = stHtml + html;
+  }
   document.getElementById('summaryContent').innerHTML = html;
 }
 
@@ -1584,28 +1611,28 @@ function submitOrder() {
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  /* البيانات من orderData (محفوظة قبل الـ reset) */
-  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
-    ? orderData.cakes
-    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
-  if (_wa_allCakes.length > 1) {
-    _wa_allCakes.forEach(function(c, ci) {
-      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
-      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
-      msg += '📐 المقاس: ' + (c.size||'') + '\n';
-      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
-      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
-      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
-      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
-      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
-      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
-      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
-      msg += '━━━━━━━━\n';
-    });
-    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
-    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  msg += '📐 المقاس: ' + order.size + '\n';
+  if (order.isSpecialTier && order.tiers && order.tiers.length) {
+    var _ts = order.tiers;
+    var _fl = function(emoji, lbl, fn) {
+      return emoji + ' ' + lbl + ': ' + _ts.map(function(t,i){ return 'دور '+(i+1)+': '+(fn(t)||'—'); }).join(' | ') + '\n';
+    };
+    msg += '🎂 الأدوار: ' + _ts.length + ' أدوار\n';
+    msg += '────────\n';
+    msg += _fl('🧁', 'نوع الكريمة', function(t){ return t.type; });
+    msg += _fl('📐', 'قطر الدور', function(t){ return t.diameter ? t.diameter+' سم' : ''; });
+    msg += _fl('📏', 'الطبقات', function(t){ return t.height; });
+    msg += _fl('🍫', 'التوبينج', function(t){ return t.topping+(t.customTopping?' ('+t.customTopping+')':''); });
+    msg += _fl('🎨', 'اللون', function(t){ return t.color; });
+    msg += _fl('🍰', 'الإسبونش', function(t){ return t.sponge; });
+    msg += _fl('🍓', 'الحشو', function(t){ return t.filling; });
+    msg += _fl('✨', 'وصف الزينة', function(t){ return t.deco+(t.decoText?' — '+t.decoText:''); });
+    var _tn=_ts.map(function(t,i){ return t.tierNotes?'دور '+(i+1)+': '+t.tierNotes:''; }).filter(Boolean);
+    if(_tn.length) msg += '📝 ملاحظات الأدوار: '+_tn.join(' | ')+'\n';
+    if(order.specialNotes) msg += '📝 ملاحظات عامة: '+order.specialNotes+'\n';
+    if(order._specialImgCount) msg += '📎 صور مرفقة: '+order._specialImgCount+' صورة (ترسل مع الرسالة)\n';
+    msg += '🔶 طلب خاص — السعر يتحدد بعد المراجعة والموافقة\n';
   } else {
-    msg += '📐 المقاس: ' + order.size + '\n';
     msg += '🎂 الأدوار: ' + order.layers + '\n';
     msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
     msg += '🍫 التوبينج: ' + toppingText + '\n';
@@ -1615,7 +1642,6 @@ function submitOrder() {
     msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
     if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
   }
-  /* الوصف والسعر — بس في حالة تورتة واحدة (في الأكتر من تورتة، موجودة في كل تورتة فوق) */
   if (_wa_allCakes.length <= 1) {
     msg += '━━━━━━━━━━━━━━━━\n';
     msg += '✍️ الوصف:\n' + order.desc + '\n';
@@ -1732,13 +1758,29 @@ function loadAdminOrders() {
       // Merge with local
       var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
       local.forEach(function(o) { if (!allOrders.find(function(x){return x.id===o.id;})) allOrders.push(o); });
+      window._adminOrdersCache = allOrders;
+      /* حفظ بدون صور عشان مايتجاوزش الـ quota */
+      try {
+        var _lightAdmin = allOrders.map(function(o) {
+          var c = Object.assign({}, o);
+          delete c.imgBase64;
+          if (c.tiers) c.tiers = c.tiers.map(function(t) {
+            var tc = Object.assign({}, t); delete tc.refImg; delete tc.perImgs; return tc;
+          });
+          return c;
+        });
+        if (typeof _safeSaveOrders === 'function') _safeSaveOrders(_lightAdmin);
+        else localStorage.setItem('zz_cake_orders', JSON.stringify(_lightAdmin));
+      } catch(e) {}
       renderAdminOrders(allOrders);
     }).catch(function() {
       var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      window._adminOrdersCache = local;
       renderAdminOrders(local);
     });
   } else {
     var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+    window._adminOrdersCache = local;
     renderAdminOrders(local);
   }
 }
@@ -1797,8 +1839,11 @@ function renderAdminOrders(orders) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
         '<div><div style="font-size:15px;font-weight:900;color:var(--dark)">'+o.clientName+'</div>' +
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
-        '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+(isReceived?'rgba(134,239,172,.2)':'rgba(251,191,36,.15)')+';color:'+(isReceived?'#166534':'#92400e')+'">'+
-        (isReceived?'✅ تم الاستلام':'⏳ في الانتظار')+'</span>' +
+        (function(){
+          var st=_getOrderStatus(o);
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
+        })() +
       '</div>' +
 
       // DETAILS
@@ -2218,6 +2263,7 @@ function buildSizeGrid() {
       <div class="size-label">${s.label}</div>
       <div class="size-price">~${s.price} ج</div>
     </div>`).join('');
+
 }
 
 function buildSizePricesAdmin() {
@@ -2247,14 +2293,13 @@ let clientLat = null, clientLng = null;
 
 function toggleDeliveryFields() {
   const type = document.getElementById('orderType').value;
-  document.getElementById('deliveryFields').style.display = type === 'delivery' ? 'block' : 'none';
-  if (type !== 'delivery') {
-    order.deliveryFee = 0;
-    var dfEl = document.getElementById('deliveryFee');
-    if (dfEl) dfEl.value = '';
-  }
+  var df = document.getElementById('deliveryFields');
+  if (df) df.style.display = type === 'delivery' ? 'block' : 'none';
   var otherEl = document.getElementById('otherBranchField');
   if (otherEl) otherEl.style.display = type === 'other' ? 'block' : 'none';
+  if (type !== 'delivery') {
+    if (typeof order !== 'undefined') order.deliveryFee = 0;
+  }
 }
 
 function getClientLocation() {
@@ -2448,8 +2493,22 @@ function loadTrackerOrders(filter) {
       var orders = [];
       if (snap.exists()) {
         snap.forEach(function(c) { var v = c.val(); if (v) orders.push(v); });
-        // حفظ محلي للطباعة اللي بعدين
-        localStorage.setItem('zz_cake_orders', JSON.stringify(orders));
+        // حفظ محلي للطباعة (بدون صور عشان محيتجاوزش الـ quota)
+        try {
+          var _lightOrders = orders.map(function(o) {
+            var c = Object.assign({}, o);
+            delete c.imgBase64;
+            if (c.tiers) c.tiers = c.tiers.map(function(t) {
+              var tc = Object.assign({}, t);
+              delete tc.refImg;
+              delete tc.perImgs;
+              return tc;
+            });
+            return c;
+          });
+          if (typeof _safeSaveOrders === 'function') _safeSaveOrders(_lightOrders);
+          else localStorage.setItem('zz_cake_orders', JSON.stringify(_lightOrders));
+        } catch(e) {}
       }
       renderTrackerOrders(orders, filter);
     }).catch(function() {
@@ -2688,7 +2747,7 @@ function validateStep() {
     order.clientTime = h + ':' + min + ' ' + ampm;
   }
   if (currentStep === 2) {
-    if (!order.size) { showToast('❌ اختر مقاس التورتة'); return false; }
+    if (!order.size && !order.isSpecialTier) { showToast('❌ اختر مقاس التورتة'); return false; }
   }
   if (currentStep === 3) {
     if (!document.getElementById('cakeDesc').value.trim()) { showToast('❌ وصف التورتة مطلوب'); return false; }
@@ -2886,6 +2945,32 @@ function buildSummary() {
   }
 
   html += '</div>';
+  /* SPECIAL TIER: prepend tier details */
+  if (order.isSpecialTier && order.tiers && order.tiers.length) {
+    var _tN=['الأول','الثاني','الثالث','الرابع','الخامس'];
+    var stHtml='<div style="background:#fff0f5;border:2px solid #e91e62;border-radius:14px;padding:14px;margin-bottom:14px">'+
+      '<div style="font-weight:900;color:#c2185b;font-size:14px;margin-bottom:10px">✨ تورتة خاصة — '+order.tiers.length+' أدوار</div>';
+    var row2=function(k,v){return '<tr><td style="padding:3px 8px;color:#888;width:42%;font-size:12px">'+k+'</td><td style="padding:3px 8px;font-weight:700;font-size:12px">'+v+'</td></tr>';};
+    order.tiers.forEach(function(t,i){
+      stHtml+='<div style="background:#fff;border:1.5px solid #f9a8d4;border-radius:10px;padding:10px;margin-bottom:8px">'+
+        '<div style="font-weight:800;color:#be185d;font-size:13px;margin-bottom:6px">الدور '+(_tN[i]||i+1)+'</div>'+
+        '<table style="width:100%;border-collapse:collapse">'+
+        (t.type?row2('نوع',t.type):'')+
+        (t.diameter?row2('قطر',t.diameter+' سم'):'')+
+        (t.height?row2('الطبقات',t.height):'')+
+        (t.topping?row2('توبينج',t.topping+(t.customTopping?' ('+t.customTopping+')':'')):'')+
+        (t.color?row2('لون',t.color):'')+
+        (t.sponge?row2('إسبونش',t.sponge):'')+
+        (t.filling&&t.filling!=='بدون حشو'?row2('حشو',t.filling):'')+
+        (t.deco?row2('زينة',t.deco+(t.decoText?' — '+t.decoText:'')):'')+
+        (t.tierNotes?row2('ملاحظات',t.tierNotes):'')+
+        '</table></div>';
+    });
+    if(order.specialNotes) stHtml+='<div style="background:#fdf6e3;border-radius:8px;padding:8px;font-size:12px;margin-top:4px"><b>ملاحظات عامة:</b> '+order.specialNotes+'</div>';
+    stHtml+='<div style="text-align:center;margin-top:10px;padding:8px;background:#ffe4f2;border-radius:8px;font-size:12px;color:#be185d;font-weight:700">⚠️ السعر يتحدد بعد المراجعة</div>';
+    stHtml+='</div>';
+    html = stHtml + html;
+  }
   document.getElementById('summaryContent').innerHTML = html;
 }
 
@@ -2954,28 +3039,28 @@ function submitOrder() {
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  /* البيانات من orderData (محفوظة قبل الـ reset) */
-  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
-    ? orderData.cakes
-    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
-  if (_wa_allCakes.length > 1) {
-    _wa_allCakes.forEach(function(c, ci) {
-      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
-      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
-      msg += '📐 المقاس: ' + (c.size||'') + '\n';
-      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
-      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
-      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
-      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
-      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
-      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
-      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
-      msg += '━━━━━━━━\n';
-    });
-    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
-    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  msg += '📐 المقاس: ' + order.size + '\n';
+  if (order.isSpecialTier && order.tiers && order.tiers.length) {
+    var _ts = order.tiers;
+    var _fl = function(emoji, lbl, fn) {
+      return emoji + ' ' + lbl + ': ' + _ts.map(function(t,i){ return 'دور '+(i+1)+': '+(fn(t)||'—'); }).join(' | ') + '\n';
+    };
+    msg += '🎂 الأدوار: ' + _ts.length + ' أدوار\n';
+    msg += '────────\n';
+    msg += _fl('🧁', 'نوع الكريمة', function(t){ return t.type; });
+    msg += _fl('📐', 'قطر الدور', function(t){ return t.diameter ? t.diameter+' سم' : ''; });
+    msg += _fl('📏', 'الطبقات', function(t){ return t.height; });
+    msg += _fl('🍫', 'التوبينج', function(t){ return t.topping+(t.customTopping?' ('+t.customTopping+')':''); });
+    msg += _fl('🎨', 'اللون', function(t){ return t.color; });
+    msg += _fl('🍰', 'الإسبونش', function(t){ return t.sponge; });
+    msg += _fl('🍓', 'الحشو', function(t){ return t.filling; });
+    msg += _fl('✨', 'وصف الزينة', function(t){ return t.deco+(t.decoText?' — '+t.decoText:''); });
+    var _tn=_ts.map(function(t,i){ return t.tierNotes?'دور '+(i+1)+': '+t.tierNotes:''; }).filter(Boolean);
+    if(_tn.length) msg += '📝 ملاحظات الأدوار: '+_tn.join(' | ')+'\n';
+    if(order.specialNotes) msg += '📝 ملاحظات عامة: '+order.specialNotes+'\n';
+    if(order._specialImgCount) msg += '📎 صور مرفقة: '+order._specialImgCount+' صورة (ترسل مع الرسالة)\n';
+    msg += '🔶 طلب خاص — السعر يتحدد بعد المراجعة والموافقة\n';
   } else {
-    msg += '📐 المقاس: ' + order.size + '\n';
     msg += '🎂 الأدوار: ' + order.layers + '\n';
     msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
     msg += '🍫 التوبينج: ' + toppingText + '\n';
@@ -2985,7 +3070,6 @@ function submitOrder() {
     msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
     if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
   }
-  /* الوصف والسعر — بس في حالة تورتة واحدة (في الأكتر من تورتة، موجودة في كل تورتة فوق) */
   if (_wa_allCakes.length <= 1) {
     msg += '━━━━━━━━━━━━━━━━\n';
     msg += '✍️ الوصف:\n' + order.desc + '\n';
@@ -3102,13 +3186,16 @@ function loadAdminOrders() {
       // Merge with local
       var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
       local.forEach(function(o) { if (!allOrders.find(function(x){return x.id===o.id;})) allOrders.push(o); });
+      window._adminOrdersCache = allOrders;
       renderAdminOrders(allOrders);
     }).catch(function() {
       var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      window._adminOrdersCache = local;
       renderAdminOrders(local);
     });
   } else {
     var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+    window._adminOrdersCache = local;
     renderAdminOrders(local);
   }
 }
@@ -3167,8 +3254,11 @@ function renderAdminOrders(orders) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
         '<div><div style="font-size:15px;font-weight:900;color:var(--dark)">'+o.clientName+'</div>' +
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
-        '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+(isReceived?'rgba(134,239,172,.2)':'rgba(251,191,36,.15)')+';color:'+(isReceived?'#166534':'#92400e')+'">'+
-        (isReceived?'✅ تم الاستلام':'⏳ في الانتظار')+'</span>' +
+        (function(){
+          var st=_getOrderStatus(o);
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
+        })() +
       '</div>' +
 
       // DETAILS
@@ -3622,11 +3712,8 @@ function toggleDeliveryFields() {
   if (df) df.style.display = type === 'delivery' ? 'block' : 'none';
   var otherEl = document.getElementById('otherBranchField');
   if (otherEl) otherEl.style.display = type === 'other' ? 'block' : 'none';
-  /* Reset fee if not delivery */
   if (type !== 'delivery') {
     if (typeof order !== 'undefined') order.deliveryFee = 0;
-    var feeEl = document.getElementById('deliveryFee');
-    if (feeEl) feeEl.value = '';
   }
 }
 
@@ -3821,8 +3908,22 @@ function loadTrackerOrders(filter) {
       var orders = [];
       if (snap.exists()) {
         snap.forEach(function(c) { var v = c.val(); if (v) orders.push(v); });
-        // حفظ محلي للطباعة اللي بعدين
-        localStorage.setItem('zz_cake_orders', JSON.stringify(orders));
+        // حفظ محلي للطباعة (بدون صور عشان محيتجاوزش الـ quota)
+        try {
+          var _lightOrders = orders.map(function(o) {
+            var c = Object.assign({}, o);
+            delete c.imgBase64;
+            if (c.tiers) c.tiers = c.tiers.map(function(t) {
+              var tc = Object.assign({}, t);
+              delete tc.refImg;
+              delete tc.perImgs;
+              return tc;
+            });
+            return c;
+          });
+          if (typeof _safeSaveOrders === 'function') _safeSaveOrders(_lightOrders);
+          else localStorage.setItem('zz_cake_orders', JSON.stringify(_lightOrders));
+        } catch(e) {}
       }
       renderTrackerOrders(orders, filter);
     }).catch(function() {
@@ -4670,7 +4771,8 @@ function doAdminPrint(o) {
     // ✍️ الوصف بخط كبير واضح
     (o.desc?'<div class="descbox"><div class="t">✍️ وصف التورتة المطلوب</div><div class="c">'+o.desc+'</div></div>':'')+
 
-    // ملاحظات داخلية — تظهر في ورقة المراجعة الكاملة فقط
+    // 📝 ملاحظات الأدمن (لو موجودة)
+    (o.adminNote?'<div class="notebox"><div class="t">📝 ملاحظات داخلية (الأدمن)</div><div class="c">'+o.adminNote+'</div></div>':'')+
 
     // 📱 بيانات المحفظة (لو دفع محفظة)
     (o.payMethod==='wallet'?
@@ -4739,8 +4841,11 @@ function renderAdminOrders(orders) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
         '<div><div style="font-size:15px;font-weight:900;color:var(--dark)">'+srcBadge+o.clientName+'</div>' +
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
-        '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+(isReceived?'rgba(134,239,172,.2)':'rgba(251,191,36,.15)')+';color:'+(isReceived?'#166534':'#92400e')+'">'+
-        (isReceived?'✅ تم الاستلام':'⏳ في الانتظار')+'</span>' +
+        (function(){
+          var st=_getOrderStatus(o);
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
+        })() +
       '</div>' +
 
       '<div style="background:#fafafa;border-radius:10px;padding:10px;margin-bottom:10px;font-size:12px;line-height:2">' +
@@ -4854,10 +4959,7 @@ function renderAdminEditor(o){
       '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
-      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
-        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
-        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
-      '</div>'+
+      (( (o.orderType||'factory')==='delivery') ? aeLabel('🚚 مصاريف التوصيل (ج.م)') + aeInput('ae_deliveryFee', o.deliveryFee||0, '0') : '<input type="hidden" id="ae_deliveryFee" value="0">') +
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -4978,7 +5080,7 @@ function collectAdminOrder(){
   base.dedicationChoice = ded ? 'yes' : 'none';
   base.desc          = aeVal('ae_desc');
   base.finalPrice    = aeNum('ae_finalPrice');
-  if (base.deliveryFee > 0 && base.finalPrice > 0) base.finalPrice = base.finalPrice + base.deliveryFee;
+  if ((base.deliveryFee||0) > 0) base.finalPrice = (base.finalPrice || 0) + base.deliveryFee;
   base.deposit       = aeNum('ae_deposit');
   base.payMethod     = aeVal('ae_payMethod') || 'cash';
   base.walletName    = aeVal('ae_walletName');
@@ -5054,16 +5156,36 @@ function buildClientConfirmMsg(o){
   m += '🏪 مكان الاستلام: ' + pickup + '\n';
   if (o.orderType==='delivery' && o.clientAddress) m += '📍 العنوان: ' + o.clientAddress + '\n';
   m += '━━━━━━━━━━━━━━\n';
-  m += '📐 المقاس: ' + (o.size||'-') + '\n';
-  m += '🎂 الأدوار: ' + (o.layers||'-') + '\n';
-  m += '📏 الارتفاع: ' + (o.layerHeight||'-') + '\n';
-  m += '🍫 التوبينج: ' + (o.topping||'-') + '\n';
-  m += '🍰 الكيك: ' + (o.sponge||'-') + '\n';
-  m += '🍓 الحشوة: ' + (o.filling||'بدون حشو') + '\n';
-  m += '🎉 المناسبة: ' + (o.occasion||'-') + '\n';
-  m += '✨ الزينة: ' + (o.deco||'-') + '\n';
-  if (o.dedicationText) m += '💌 الإهداء: ' + o.dedicationText + '\n';
-  if (o.desc) m += '✍️ الوصف: ' + o.desc + '\n';
+  if (o.isSpecialTier && o.tiers && o.tiers.length) {
+    var _tn=['الأول','الثاني','الثالث','الرابع','الخامس'];
+    m += '✨ تورتة خاصة — '+o.tiers.length+' أدوار\n';
+    o.tiers.forEach(function(t,i){
+      m += '────────\n';
+      m += '🎂 الدور '+(_tn[i]||(i+1))+':\n';
+      if(t.type)     m += '  🧁 النوع: '+t.type+'\n';
+      if(t.diameter) m += '  📐 القطر: '+t.diameter+' سم\n';
+      if(t.height)   m += '  📏 الطبقات: '+t.height+'\n';
+      if(t.topping)  m += '  🍫 التوبينج: '+t.topping+(t.customTopping?' ('+t.customTopping+')':'')+'\n';
+      if(t.color)    m += '  🎨 اللون: '+t.color+'\n';
+      if(t.sponge)   m += '  🍰 الإسبونش: '+t.sponge+'\n';
+      if(t.filling&&t.filling!=='بدون حشو') m += '  🍓 الحشو: '+t.filling+'\n';
+      if(t.deco)     m += '  ✨ الزينة: '+t.deco+(t.decoText?' — '+t.decoText:'')+'\n';
+      if(t.tierNotes) m += '  📝: '+t.tierNotes+'\n';
+    });
+    if(o.specialNotes) m += '────────\n📝 ملاحظات: '+o.specialNotes+'\n';
+    m += '💰 السعر يتحدد بعد المراجعة\n';
+  } else {
+    m += '📐 المقاس: ' + (o.size||'-') + '\n';
+    m += '🎂 الأدوار: ' + (o.layers||'-') + '\n';
+    m += '📏 الارتفاع: ' + (o.layerHeight||'-') + '\n';
+    m += '🍫 التوبينج: ' + (o.topping||'-') + '\n';
+    m += '🍰 الكيك: ' + (o.sponge||'-') + '\n';
+    m += '🍓 الحشوة: ' + (o.filling||'بدون حشو') + '\n';
+    m += '🎉 المناسبة: ' + (o.occasion||'-') + '\n';
+    m += '✨ الزينة: ' + (o.deco||'-') + '\n';
+    if (o.dedicationText) m += '💌 الإهداء: ' + o.dedicationText + '\n';
+    if (o.desc) m += '✍️ الوصف: ' + o.desc + '\n';
+  }
   m += '━━━━━━━━━━━━━━\n';
   if (o.finalPrice>0) {
     m += '💰 السعر النهائي: ' + o.finalPrice + ' ج.م\n';
@@ -5193,7 +5315,7 @@ function aeTogglePay(){
 // --- حساب المتبقي تلقائياً ---
 function aeCalcRemaining(){
   var fp=aeNum('ae_finalPrice'), dp=aeNum('ae_deposit');
-  var df=aeNum('ae_deliveryFee'); /* مصاريف التوصيل */
+  var df=aeNum('ae_deliveryFee');
   var grand = fp + df;
   var rem=Math.max(0, grand-dp);
   var d=document.getElementById('ae_remaining_disp');
@@ -5236,10 +5358,7 @@ function renderAdminEditor(o){
       '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
-      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
-        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
-        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
-      '</div>'+
+      (( (o.orderType||'factory')==='delivery') ? aeLabel('🚚 مصاريف التوصيل (ج.م)') + aeInput('ae_deliveryFee', o.deliveryFee||0, '0') : '<input type="hidden" id="ae_deliveryFee" value="0">') +
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -5337,7 +5456,6 @@ function collectAdminOrder(){
   base.desc          = aeVal('ae_desc');
 
   base.finalPrice    = aeNum('ae_finalPrice');
-  if ((base.deliveryFee||0) > 0 && base.finalPrice > 0) base.finalPrice += base.deliveryFee;
   base.deposit       = aeNum('ae_deposit');
   base.payMethod     = aeVal('ae_payMethod') || 'cash';
   if(base.payMethod==='wallet'){
@@ -5452,6 +5570,7 @@ function doAdminPrint(o) {
       row('الزينة / الديكور', o.deco)+
       (dedic?row('💌 الإهداء', dedic):'')+
       (o.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+o.desc+'</td></tr>':'')+
+      (o.adminNote?'<tr><td>📝 ملاحظة داخلية</td><td>'+o.adminNote+'</td></tr>':'')+
     '</table></div>'+
 
     // ===== 4) ميعاد الاستلام =====
@@ -5552,43 +5671,58 @@ function printOrdersTable(orders, dateStr){
   var rows = orders.map(function(o,i){
     var isRec = !!o.receivedBy;
     var rem = (o.finalPrice&&o.finalPrice>0)?Math.max(0,o.finalPrice-(o.deposit||0)):0;
-    var wal = (o.payMethod==='wallet')?('📱 '+(o.walletName||'')+' / '+(o.walletNum||'')+' / '+(o.walletMgr||'')):'💵 كاش';
-    return '<tr style="background:'+(i%2===0?'#fff':'#fafafa')+'">'+
-      '<td>'+(i+1)+'</td>'+
-      '<td style="font-weight:800">'+(o.clientName||'-')+'</td>'+
-      '<td style="font-weight:800;color:#c2185b">'+to12(o.clientTime)+'</td>'+
-      '<td>'+(o.clientPhone||'-')+'</td>'+
-      '<td>'+(o.size||'-')+'</td>'+
-      '<td>'+(o.layers||'-')+'</td>'+
-      '<td>'+(o.topping||'-')+'</td>'+
-      '<td style="font-weight:700;color:'+(isRec?'#166534':'#92400e')+'">'+(isRec?'✅':'⏳')+'</td>'+
-      '<td>'+(o.finalPrice?o.finalPrice+'ج':'—')+'</td>'+
-      '<td style="color:'+(rem>0?'#dc2626':'#16a34a')+'">'+(o.finalPrice?(rem>0?rem+'ج':'✅'):'—')+'</td>'+
-      '<td style="font-size:10px">'+wal+'</td>'+
+    var payTypeCell = (o.payMethod==='wallet') ? ((o.walletNum||'-')+' — '+(o.walletMgr||'-')) : 'كاش';
+    var descParts = [];
+    if (o.desc) descParts.push('وصف: '+o.desc);
+    if (o.dedicationText) descParts.push('إهداء: '+o.dedicationText);
+    var descCell = descParts.length ? descParts.join(' | ') : '-';
+    return '<tr style="background:'+(i%2===0?'#fff':'#fafafa')+'">' +
+      '<td style="padding:8px;border:1px solid #ddd;font-weight:700;text-align:center">'+(i+1)+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-weight:800;font-size:14px">'+(o.clientName||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-weight:700;color:#c2185b;font-size:14px">'+to12(o.clientTime||'')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.clientPhone||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.size||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.layers||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.topping||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.deco||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd">'+(o.sponge||'-')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-size:12px">'+descCell+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-weight:700;color:'+(isRec?'#166534':'#92400e')+'">'+(isRec?'✅ تم':'⏳ انتظار')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-size:12px">'+(o.finalPrice?o.finalPrice+' ج':'—')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-size:12px">'+(o.deposit?o.deposit+' ج':'—')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-size:12px;color:'+(rem>0?'#dc2626':'#16a34a')+'">'+(o.finalPrice?(rem>0?rem+' ج':'✅'):'—')+'</td>'+
+      '<td style="padding:8px;border:1px solid #ddd;font-size:12px">'+payTypeCell+'</td>'+
     '</tr>';
   }).join('');
-  var html='<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>أوردرات '+dateStr+'</title>'+
-    '<style>body{font-family:"Cairo",Arial,sans-serif;padding:14px;font-size:12px;direction:rtl}'+
-    'h2{text-align:center;color:#b8860b;margin:0 0 4px}'+
-    '.sub{text-align:center;color:#555;margin-bottom:10px;font-size:12px;font-weight:700}'+
-    'table{width:100%;border-collapse:collapse;font-size:11px}'+
-    'th{background:#b8860b;color:#fff;padding:6px;border:1px solid #ddd}'+
-    'td{padding:6px;border:1px solid #ddd;text-align:center}'+
-    '.summary{display:flex;gap:18px;justify-content:center;background:#fff8f0;border:1px solid #e8973a;border-radius:8px;padding:8px;margin-bottom:10px}'+
-    '.summary b{color:#b8860b;font-size:16px}'+
+  var html='<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>طلبات '+dayName+' '+dateStr+'</title>'+
+    '<style>@page{size:landscape}body{font-family:Arial,sans-serif;padding:15px;font-size:12px;direction:rtl}'+
+    'h2{text-align:center;color:#c8973a;margin:0 0 4px}'+
+    '.sub{text-align:center;color:#666;margin-bottom:12px;font-size:12px}'+
+    'table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}'+
+    'th,td{word-wrap:break-word;overflow-wrap:break-word;white-space:normal}'+
+    'th{background:#c8973a;color:#fff;padding:8px;border:1px solid #ddd;font-size:12px}'+
     '.footer{text-align:center;margin-top:12px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:8px}'+
+    '.summary{background:#fff8f0;border:1px solid #e8973a;border-radius:8px;padding:10px;margin-bottom:12px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap}'+
+    '.sum-item{text-align:center;font-size:13px;font-weight:700}'+
+    '.sum-num{font-size:20px;font-weight:900;color:#c8973a}'+
     '@media print{button{display:none!important}}'+
     '</style></head><body>'+
-    '<h2>🎂 زمزم ديزرت</h2>'+
-    '<div class="sub">أوردرات '+(dayName?dayName+' — ':'')+dateStr+'</div>'+
-    '<div class="summary"><div>الإجمالي: <b>'+orders.length+'</b></div>'+
-      '<div>⏳ انتظار: <b>'+orders.filter(function(o){return !o.receivedBy;}).length+'</b></div>'+
-      '<div>✅ استلام: <b>'+orders.filter(function(o){return !!o.receivedBy;}).length+'</b></div></div>'+
-    '<table><thead><tr><th>#</th><th>الاسم</th><th>الميعاد</th><th>الهاتف</th><th>المقاس</th><th>الأدوار</th><th>التوبينج</th><th>الحالة</th><th>السعر</th><th>المتبقي</th><th>الدفع/المحفظة</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<h2>🍰 زمزم ديزرت</h2>'+
+    '<div class="sub">طلبات '+(dayName?dayName+' — ':'')+dateStr+'</div>'+
+    '<div class="summary">'+
+      '<div class="sum-item"><div class="sum-num">'+orders.length+'</div><div>إجمالي الطلبات</div></div>'+
+      '<div class="sum-item"><div class="sum-num">'+orders.filter(function(o){return !o.receivedBy;}).length+'</div><div>⏳ في الانتظار</div></div>'+
+      '<div class="sum-item"><div class="sum-num">'+orders.filter(function(o){return !!o.receivedBy;}).length+'</div><div>✅ تم الاستلام</div></div>'+
+    '</div>'+
+    '<table><thead><tr>'+
+      '<th>#</th><th>الاسم</th><th>وقت الاستلام</th><th>الهاتف</th>'+
+      '<th>المقاس</th><th>الأدوار</th><th>التوبينج</th><th>نوع الزينة</th><th>نوع الكيك</th><th>الوصف والإهداء</th><th>الحالة</th>'+
+      '<th>السعر</th><th>المدفوع</th><th>المتبقي</th><th>نوع الدفع</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table>'+
     '<div class="footer">Zamzam Dessert · Designed by Mahmoud Gamal Eldeen · 01508613866</div>'+
-    '<br/><button onclick="window.print()" style="width:100%;padding:12px;background:#b8860b;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:900;cursor:pointer">🖨️ طباعة</button>'+
+    '<br/><button onclick="window.print()" style="width:100%;padding:10px;background:#c8973a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ طباعة</button>'+
     '</body></html>';
-  var win=window.open('','_blank','width=1000,height=760');
+  var win=window.open('','_blank','width=1100,height=760');
   if(!win){ showToast('⚠️ اسمح للنوافذ المنبثقة'); return; }
   win.document.write(html); win.document.close();
 }
@@ -6013,10 +6147,8 @@ function aeRecalcAll(){
   if(d){
     var breakdown = (itemsTotal>0)
       ? '🎂 التورتة: <b>'+cakePrice+'</b> + 🧁 طلبات أخرى: <b>'+itemsTotal+'</b>'+(df>0?' + 🚚 توصيل: <b>'+df+'</b>':'')+' = '
-      : (df>0?'🚚 توصيل: <b>'+df+'</b> ج.م &nbsp;+&nbsp; ':'');
-    var _bk2 = (breakdown&&grand>df) ? (breakdown+(df>0?' + 🚚 مصاريف توصيل: <b>'+df+'</b>':'')+' = 💰 <b style="color:#c2185b">'+grand+'</b> ج.م')
-        : (df>0 ? ('🚚 مصاريف توصيل: <b>'+df+'</b> ج.م') : ('💰 <b>'+grand+'</b> ج.م'));
-    d.innerHTML = _bk2+'<br>'+
+      : (df>0?'🚚 توصيل: <b>'+df+'</b> ج.م &nbsp;+&nbsp; ':'');'';
+    d.innerHTML = breakdown + '💰 الإجمالي: <b>'+grand+'</b> ج.م<br>'+
       'عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; '+
       '<span style="color:'+(rem>0?'#b91c1c':'#16a34a')+'">المتبقي: <b>'+(rem>0?(rem+' ج.م'):'مدفوع بالكامل ✅')+'</b></span>';
   }
@@ -6055,10 +6187,7 @@ function renderAdminEditor(o){
       '</select>'+
       aeLabel('اسم الفرع الآخر (لو اخترت فرع آخر)') + aeInput('ae_otherBranch', o.otherBranch, 'مثال: فرع طنطا') +
       aeLabel('عنوان التوصيل (لو توصيل)') + aeArea('ae_address', o.clientAddress, 'العنوان بالتفصيل') +
-      '<div id="ae_dfRow" style="display:'+(( (o.orderType||'factory')==='delivery')?'block':'none')+'">'+
-        aeLabel('🚚 مصاريف التوصيل (ج.م)') +
-        '<input type="number" id="ae_deliveryFee" value="'+(o.deliveryFee||0)+'" min="0" step="5" placeholder="0" oninput="if(typeof aeRecalcAll===\'function\') aeRecalcAll(); else if(typeof aeCalcRemaining===\'function\') aeCalcRemaining();" style="width:100%;padding:10px;border:2px solid #e91e62;border-radius:8px;font-size:15px;font-weight:800;text-align:center;font-family:Cairo,sans-serif;color:#c2185b;background:#fff5f9;outline:none;margin-bottom:10px;box-sizing:border-box"/>'+
-      '</div>'+
+      (( (o.orderType||'factory')==='delivery') ? aeLabel('🚚 مصاريف التوصيل (ج.م)') + aeInput('ae_deliveryFee', o.deliveryFee||0, '0') : '<input type="hidden" id="ae_deliveryFee" value="0">') +
       aeLabel('علامة مميزة قريبة') + aeInput('ae_landmark', o.clientLandmark, 'مثال: جنب كارفور')
     ) +
 
@@ -6179,7 +6308,7 @@ function collectAdminOrder(){
   // الفاتورة المجمّعة: سعر التورتة + الطلبات الأخرى
   var cakePrice = aeNum('ae_finalPrice');
   base.cakePrice  = cakePrice;
-  base.finalPrice = cakePrice + itemsTotal + (base.deliveryFee||0); // الإجمالي الكلي + مصاريف توصيل
+  base.finalPrice = cakePrice + itemsTotal + (base.deliveryFee||0);
   base.deposit    = aeNum('ae_deposit');
   base.payMethod  = aeVal('ae_payMethod') || 'cash';
   if(base.payMethod==='wallet'){
@@ -6488,9 +6617,7 @@ function aeRecalcAll(){
   if(d){
     var bd=(itemsTotal>0)?('🎂 التورتة: <b>'+cakePrice+'</b> + 🧁 طلبات أخرى: <b>'+itemsTotal+'</b><br>'):'';
     var ds=(discount>0)?(' − 🏷️ خصم: <b>'+discount+'</b>'):'';
-    var _bk3 = (subtotal>0) ? ('💰 الإجمالي: <b>'+subtotal+'</b>'+ds+(df>0?' + 🚚 مصاريف توصيل: <b>'+df+'</b>':'')+' = <b style="color:#c2185b">'+grand+'</b> ج.م')
-        : (df>0 ? ('🚚 مصاريف توصيل: <b>'+df+'</b> ج.م') : ('💰 <b>0</b> ج.م'));
-    d.innerHTML = bd + _bk3+'<br>'+
+    d.innerHTML = bd + '💰 الإجمالي: <b>'+subtotal+'</b>'+ds+' = <b>'+grand+'</b> ج.م<br>'+
       'عربون مدفوع: <b>'+dp+'</b> ج.م &nbsp;|&nbsp; <span style="color:'+(rem>0?'#b91c1c':'#16a34a')+'">المتبقي: <b>'+(rem>0?(rem+' ج.م'):'مدفوع بالكامل ✅')+'</b></span>';
   }
 }
@@ -6663,33 +6790,31 @@ function doAdminPrint(o){
     '</table></div>';
   }
   function cakeBlock(){
-    /* Multi-cake: show each cake in its own section */
     if(o.cakes && o.cakes.length > 1){
       var _out = o.cakes.map(function(c,i){
         return '<div class="section" style="border:2px solid #e91e62">'+
           '<div class="section-title">🎂 تورتة '+(i+1)+(c.sizePrice?' — ~'+c.sizePrice+' ج.م':'')+
           '</div><table>'+
           row('المقاس', c.size)+row('عدد الأدوار', c.layers||'دور واحد')+
-          row('📏 ارتفاع الدور', c.layerHeight)+row('التوبينج', c.topping)+
+          row('ارتفاع الدور', c.layerHeight)+row('التوبينج', c.topping)+
           row('الكيك الداخلي', c.sponge)+row('الحشوة', c.filling||'بدون حشو')+
           row('المناسبة', c.occasion)+row('الزينة', c.deco)+
-          (c.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+c.desc+'</td></tr>':'')+
+          (c.desc?'<tr class="descrow"><td>الوصف</td><td>'+c.desc+'</td></tr>':'')+
           '</table></div>';
       }).join('');
       var _tp = o.cakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
       if(_tp>0) _out += '<div class="section" style="border:2px solid #16a34a;background:#f0fdf4">'+
-        '<div class="section-title" style="color:#16a34a">💰 إجمالي التورتات: '+_tp+' ج.م</div></div>';
+        '<div class="section-title" style="color:#16a34a">إجمالي التورتات: '+_tp+' ج.م</div></div>';
       return _out;
     }
-    /* Single cake */
     return '<div class="section"><div class="section-title">🎂 مواصفات التورتة</div><table>'+
-      row('المقاس', o.size)+row('عدد الأدوار', o.layers)+row('📏 ارتفاع الدور', o.layerHeight)+
+      row('المقاس', o.size)+row('عدد الأدوار', o.layers)+row('ارتفاع الدور', o.layerHeight)+
       row('التوبينج', o.topping)+row('الكيك الداخلي', o.sponge)+row('الحشوة', o.filling||'بدون حشو')+
     '</table></div>'+
     '<div class="section"><div class="section-title">🎨 التصميم والمناسبة</div><table>'+
       row('المناسبة', o.occasion)+row('الزينة / الديكور', o.deco)+
-      (dedic?row('💌 الإهداء', dedic):'')+
-      (o.desc?'<tr class="descrow"><td>✍️ الوصف</td><td>'+o.desc+'</td></tr>':'')+
+      (dedic?row('الإهداء', dedic):'')+
+      (o.desc?'<tr class="descrow"><td>الوصف</td><td>'+o.desc+'</td></tr>':'')+
     '</table></div>';
   }
   function itemBlock(it){
@@ -6714,18 +6839,18 @@ function doAdminPrint(o){
   }
   function bands(){
     return '<div class="band"><div class="lbl">⏰ ميعاد الاستلام</div><div class="val">'+dateLine+' — الساعة '+timeLine+'</div></div>'+
-           /* _allCakesHTML removed — cakeBlock() already shows all cakes */(typeof _coat1HTML==='function'&&o.coating1&&!(o.cakes&&o.cakes.length>1)?'<div style="margin:6px 0">'+_coat1HTML(o)+'</div>':'')+(typeof _cream1HTML==='function'&&o.creamColor1&&!(o.cakes&&o.cakes.length>1)?'<div style="margin:6px 0">'+_cream1HTML(o)+'</div>':'')+(typeof _tier2HTML==='function'&&o.tier2?'<div style="margin:6px 0">'+_tier2HTML(o)+'</div>':'')+'<div class="placeband"><div class="lbl">📍 مكان الاستلام</div><div class="val">'+placeDetail+'</div></div>';
+           (typeof _coat1HTML==='function'&&o.coating1&&!(o.cakes&&o.cakes.length>1)?'<div style="margin:6px 0">'+_coat1HTML(o)+'</div>':'')+(typeof _cream1HTML==='function'&&o.creamColor1?'<div style="margin:6px 0">'+_cream1HTML(o)+'</div>':'')+(typeof _tier2HTML==='function'&&o.tier2?'<div style="margin:6px 0">'+_tier2HTML(o)+'</div>':'')+'<div class="placeband"><div class="lbl">📍 مكان الاستلام</div><div class="val">'+placeDetail+'</div></div>';
   }
   function priceBox(){
     if(!(o.finalPrice>0)) return '';
     var priceBreak = (hasItems && o.cakePrice!=null && o.cakePrice>0) ? '<div class="price-sub">🎂 التورتة: '+o.cakePrice+' ج + 🧁 طلبات أخرى: '+(o.itemsTotal||0)+' ج</div>' : '';
     var discLine = (o.discount>0) ? '<div class="price-sub" style="color:#b45309">🏷️ خصم VIP: −'+o.discount+' ج.م (قبل الخصم: '+((o.subtotal!=null?o.subtotal:(o.finalPrice+(o.discount||0))))+' ج.م)</div>' : '';
-    var _dfLine = (o.deliveryFee>0) ? '<div class="price-sub" style="color:#c2185b">🚚 مصاريف التوصيل: +'+o.deliveryFee+' ج.م</div>' : '';
     return '<div class="price-box">'+
       '<div class="lbl">💰 إجمالي الفاتورة</div>'+
-      '<div class="price-main">'+o.finalPrice+' ج.م</div>'+ priceBreak + discLine + _dfLine +
+      '<div class="price-main">'+o.finalPrice+' ج.م</div>'+ priceBreak + discLine +
       '<div class="price-sub">العربون المدفوع: '+(o.deposit||0)+' ج.م '+(o.payMethod==='wallet'?'• 📱 محفظة':'• 💵 كاش')+'</div>'+
       (o.payMethod==='wallet'?'<div style="background:#fff;border:1px solid #c7e9d0;border-radius:8px;padding:6px 8px;margin:4px 0;font-size:12px;font-weight:800;color:#111;text-align:center">📱 '+(o.walletName||'محفظة')+' — '+(o.walletNum||'-')+' — 👤 مسؤول: '+(o.walletMgr||'-')+(o.walletAmount?' — حُوِّل: '+o.walletAmount+' ج.م':'')+(o.sourceNumber?' — 📲 محوّل من: '+o.sourceNumber:'')+'</div>':'')+
+      (o.deliveryFee>0?'<div class="price-sub" style="color:#c2185b">🚚 مصاريف التوصيل: +'+o.deliveryFee+' ج.م</div>':'')+
       '<div class="remaining">المتبقي عند الاستلام: '+(remaining>0?remaining+' ج.م':'مدفوع بالكامل ✅')+'</div>'+
     '</div>';
   }
@@ -6770,7 +6895,7 @@ function doAdminPrint(o){
   var body;
   if(!hasItems){
     // ===== ورقة واحدة (تورتة فقط) — زي ما هي =====
-    var _noteBlock = (o.adminNote?'<div class="section" style="border:2px solid #f59e0b;background:#fffbeb"><div class="section-title" style="color:#b45309">📝 ملاحظات داخلية</div><div style="font-size:14px;line-height:1.7;color:#111;white-space:pre-wrap">'+o.adminNote+'</div></div>':'');
+    var _noteBlock = (o.adminNote?'<div class="section" style="border:2px solid #f59e0b;background:#fffbeb"><div class="section-title" style="color:#b45309">📝 ملاحظات داخلية</div><div style="font-size:14px;line-height:1.7;white-space:pre-wrap">'+o.adminNote+'</div></div>':'');
     body = '<div class="page">'+
       '<h2>🎂 زمزم ديزرت</h2>'+
       '<div class="sub">'+(hasCake?'طلب تورتة سبيشيال':'فاتورة طلب')+' — '+(o.id||'')+'</div>'+
@@ -7013,9 +7138,6 @@ async function submitOrder() {
   order.dedicationChoice = document.getElementById('dedicationChoice') ? document.getElementById('dedicationChoice').value : 'none';
   order.dedicationText = (order.dedicationChoice==='yes' && document.getElementById('dedicationText')) ? document.getElementById('dedicationText').value.trim() : '';
   if (typeof personsCount!=='undefined') order.persons = personsCount;
-  /* Capture delivery fee */
-  var _dfEl = document.getElementById('deliveryFee');
-  order.deliveryFee = _dfEl ? (parseFloat(_dfEl.value) || 0) : 0;
 
   try { if(typeof _finalizeCakes==='function') _finalizeCakes(); } catch(e){}
   const orderData = { ...order, topping: toppingText, id: 'CAKE-'+Date.now(), createdAt: new Date().toISOString() };
@@ -7056,29 +7178,30 @@ async function submitOrder() {
     if (clientLat) msg += '📌 الموقع: https://maps.google.com/?q=' + clientLat + ',' + clientLng + '\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  /* البيانات من orderData (محفوظة قبل الـ reset) */
-  var _wa_allCakes = (typeof orderData !== 'undefined' && orderData.cakes && orderData.cakes.length > 1)
-    ? orderData.cakes
-    : (order.cakes && order.cakes.length > 1 ? order.cakes : []);
-  if (_wa_allCakes.length > 1) {
-    _wa_allCakes.forEach(function(c, ci) {
-      var _cTop = c.isHalfHalf ? ('نصف '+(c.toppingHalf1||'')+' + نصف '+(c.toppingHalf2||'')) : (c.toppingText||c.topping||'');
-      msg += '🎂 تورتة ' + (ci+1) + (c.sizePrice ? ' — ~'+c.sizePrice+' ج.م' : '') + '\n';
-      msg += '📐 المقاس: ' + (c.size||'') + '\n';
-      if (c.layerHeight && c.layerHeight !== '— اختر الارتفاع —') msg += '📏 الارتفاع: ' + c.layerHeight + '\n';
-      if (_cTop) msg += '🍫 التوبينج: ' + _cTop + '\n';
-      if (c.sponge) msg += '🍰 الكيك: ' + c.sponge + '\n';
-      if (c.filling && c.filling !== 'بدون حشو') msg += '🍓 الحشوة: ' + c.filling + '\n';
-      if (c.occasion) msg += '🎉 المناسبة: ' + c.occasion + '\n';
-      if (c.deco)     msg += '✨ الزينة: ' + c.deco + '\n';
-      if (c.desc)     msg += '✍️ الوصف: ' + c.desc + '\n';
-      msg += '━━━━━━━━\n';
-    });
-    var _wa_total = _wa_allCakes.reduce(function(s,c){ return s+(+c.sizePrice||0); }, 0);
-    if (_wa_total > 0) msg += '💰 إجمالي التورتات: ~' + _wa_total + ' ج.م\n';
+  msg += '📐 المقاس: ' + order.size + '\n';
+  if (order.isSpecialTier && order.tiers && order.tiers.length) {
+    var _ts3 = order.tiers;
+    var _fl3 = function(emoji, lbl, fn) {
+      return emoji + ' ' + lbl + ': ' + _ts3.map(function(t,i){ return 'دور '+(i+1)+': '+(fn(t)||'—'); }).join(' | ') + '\n';
+    };
+    msg += '🎂 الأدوار: ' + _ts3.length + ' أدوار\n';
+    msg += '────────\n';
+    msg += _fl3('🧁', 'نوع الكريمة', function(t){ return t.type; });
+    msg += _fl3('📐', 'قطر الدور', function(t){ return t.diameter ? t.diameter+' سم' : ''; });
+    msg += _fl3('📏', 'الطبقات', function(t){ return t.height; });
+    msg += _fl3('🍫', 'التوبينج', function(t){ return t.topping+(t.customTopping?' ('+t.customTopping+')':''); });
+    msg += _fl3('🎨', 'اللون', function(t){ return t.color; });
+    msg += _fl3('🍰', 'الإسبونش', function(t){ return t.sponge; });
+    msg += _fl3('🍓', 'الحشو', function(t){ return t.filling; });
+    msg += _fl3('✨', 'وصف الزينة', function(t){ return t.deco+(t.decoText?' — '+t.decoText:''); });
+    var _tn3=_ts3.map(function(t,i){ return t.tierNotes?'دور '+(i+1)+': '+t.tierNotes:''; }).filter(Boolean);
+    if(_tn3.length) msg += '📝 ملاحظات الأدوار: '+_tn3.join(' | ')+'\n';
+    if(order.specialNotes) msg += '📝 ملاحظات عامة: '+order.specialNotes+'\n';
+    if(order._specialImgCount) msg += '📎 صور مرفقة: '+order._specialImgCount+' صورة (ترسل مع الرسالة)\n';
+    msg += '🔶 طلب خاص — السعر يتحدد بعد المراجعة والموافقة\n';
   } else {
-    msg += '📐 المقاس: ' + order.size + '\n';
     msg += '🎂 الأدوار: ' + order.layers + '\n';
+    if (order.height1) msg += '📐 ارتفاع الدور الأول: ' + order.height1 + '\n';
     msg += '📏 ارتفاع الدور: ' + layerHeight + '\n';
     msg += '🍫 التوبينج: ' + toppingText + '\n';
     msg += '🍰 الكيك: ' + (order.sponge || 'لم يُحدد') + '\n';
@@ -7087,12 +7210,9 @@ async function submitOrder() {
     msg += '✨ الزينة: ' + (order.deco || 'لم تُحدد') + '\n';
     if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
   }
-  if (dedicationChoice === 'yes' && dedicationText) msg += '💌 الإهداء: ' + dedicationText + '\n';
-  if (_wa_allCakes.length <= 1) {
-    msg += '━━━━━━━━━━━━━━━━\n';
-    msg += '✍️ الوصف:\n' + order.desc + '\n';
-    msg += '━━━━━━━━━━━━━━━━\n';
-  }
+  msg += '━━━━━━━━━━━━━━━━\n';
+  msg += '✍️ الوصف:\n' + order.desc + '\n';
+  msg += '━━━━━━━━━━━━━━━━\n';
   if (typeof classifyCustomerOrder==='function' && classifyCustomerOrder()==='special') {
     msg += '🔶 طلب خاص — السعر يتحدد بعد المراجعة والموافقة\n';
   } else {
@@ -8381,7 +8501,6 @@ function injectDepositUI(){
   if(document.getElementById('dep_block')) return;
   if(!depositApplies()) return;
   var c=getDepositCfg();
-  /* حساب الإجمالي الصحيح: جمع كل التورتات */
   var _cakeTotal = +order.sizePrice || 0;
   if (order.extraCakes && order.extraCakes.length > 0) {
     var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
@@ -8529,7 +8648,6 @@ function showFullOrderDetail(id){
     (o.deliveryFee>0?rowD('🚚 مصاريف التوصيل', o.deliveryFee+' ج.م'):'')+
     '</div>'+
     (function(){
-      /* Multi-cake: show each cake separately */
       if(o.cakes && o.cakes.length > 1){
         return o.cakes.map(function(c, i){
           return '<div style="background:#fff;border:2px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+
@@ -8549,7 +8667,6 @@ function showFullOrderDetail(id){
           '<div style="font-size:20px;font-weight:900;color:#16a34a">'+(o.cakes.reduce(function(s,c){return s+(+c.sizePrice||0);},0))+' ج.م</div>'+
         '</div>';
       }
-      /* Single cake: original display */
       return o.size?'<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">'+
         '<div style="font-weight:900;color:var(--rose-dark);margin-bottom:4px;font-size:13px">🎂 التورتة</div>'+
         rowD('المقاس', o.size)+rowD('الأدوار', o.layers)+rowD('الارتفاع', o.layerHeight)+rowD('التوبينج', o.topping)+rowD('الكيك', o.sponge)+rowD('الحشوة', o.filling)+rowD('المناسبة', o.occasion)+rowD('الزينة', o.deco)+
@@ -8701,7 +8818,6 @@ function injectDepositUI(){
   }
   if(!depositApplies()) return;
   var c=getDepositCfg();
-  /* حساب الإجمالي الصحيح: جمع كل التورتات */
   var _cakeTotal = +order.sizePrice || 0;
   if (order.extraCakes && order.extraCakes.length > 0) {
     var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
@@ -9583,7 +9699,6 @@ function injectDepositUI(){
   }
   if(!depositApplies()) return;
   var c=getDepositCfg();
-  /* حساب الإجمالي الصحيح: جمع كل التورتات */
   var _cakeTotal = +order.sizePrice || 0;
   if (order.extraCakes && order.extraCakes.length > 0) {
     var _extraSum = order.extraCakes.reduce(function(s, ck) { return s + (+ck.sizePrice || 0); }, 0);
@@ -9651,17 +9766,22 @@ function _renderAdminClassBtns(){
 }
 function adminClassFilter(cls){
   window.__adminClass=cls; _renderAdminClassBtns();
-  var orders=_allCachedOrders().filter(function(o){return !o.cancelled;});
+  var orders=(window._adminOrdersCache||_allCachedOrders()).filter(function(o){return !o.cancelled;});
   if(cls==='normal') orders=orders.filter(function(o){return o.orderClass!=='special';});
   else if(cls==='special') orders=orders.filter(function(o){return o.orderClass==='special';});
+  var status=window.__adminStatus||'all';
+  if(status!=='all') orders=orders.filter(function(o){return _getOrderStatus(o)===status;});
   renderAdminOrders(orders);
 }
 window.addEventListener('load', function(){
   setTimeout(function(){
     var sb=document.getElementById('adminSearchBox');
     if(sb && !document.getElementById('adminClassFilter')){
+      var ds=document.createElement('div'); ds.id='adminStatusFilter'; ds.style.cssText='display:flex;gap:6px;margin-bottom:8px';
+      sb.parentNode.insertBefore(ds, sb.nextSibling);
+      _renderAdminStatusBtns();
       var d=document.createElement('div'); d.id='adminClassFilter'; d.style.cssText='display:flex;gap:6px;margin-bottom:10px';
-      sb.parentNode.insertBefore(d, sb.nextSibling);
+      sb.parentNode.insertBefore(d, ds.nextSibling);
       _renderAdminClassBtns();
     }
   }, 1900);
@@ -10680,9 +10800,9 @@ function injectCream1Summary(){
 // ============================================================
 var _COATINGS=['كريمة','عجين سكر'];
 
-// --- الدور الأول: كارت شكل التغطية --- (محذوف حسب طلب المسؤول)
+// --- الدور الأول: كارت شكل التغطية ---
 function _ensureCoat1Card(){
-  return; // تعطيل - شكل التغطية محذوف
+  return; // تعطيل
   if(document.getElementById('coat1Card')) return;
   var host=document.getElementById('tier1FieldsWrap'); if(!host) return;
   var btns=_COATINGS.map(function(c){ return '<div class="option-btn coat1-btn" onclick="_setCoat1(this,\''+c+'\')"><span class="opt-emoji">'+(c==='كريمة'?'🤍':'🧁')+'</span>'+c+'</div>'; }).join('');
@@ -11969,15 +12089,13 @@ function _toggleExtraCostNotice(anchorEl, noticeId, show){
   function lock(){
     var t2=document.getElementById('tier2FieldsWrap');var t2b=document.getElementById('goTier2Btn');var lbl=document.getElementById('tier1Label');
     if(t2){t2.style.display='none';t2.innerHTML='';}if(t2b)t2b.style.display='none';if(lbl)lbl.style.display='none';
-    if(typeof order!=='undefined'){order.layers='دور واحد';delete order.tier2;}
+    if(typeof order!=='undefined'&&!order.isSpecialTier){order.layers='دور واحد';delete order.tier2;}
   }
   document.addEventListener('DOMContentLoaded',lock);setInterval(lock,800);
   window._showTier2=lock;window._goToTier2=lock;
 })();
 </script>
-
 <script>
-/* Hide cream1Card + coat1Card when multi-cake */
 (function(){
   function hideCakeCardsIfMulti(){
     if(typeof order==='undefined') return;
@@ -11990,20 +12108,185 @@ function _toggleExtraCostNotice(anchorEl, noticeId, show){
   setInterval(hideCakeCardsIfMulti, 600);
 })();
 </script>
-
 <script>
-/* Show/hide delivery fee row in admin edit form */
 window._toggleAeDeliveryFee = function() {
   var sel = document.getElementById('ae_orderType');
   var row = document.getElementById('ae_dfRow');
   if (!sel || !row) return;
-  var isDelivery = sel.value === 'delivery';
-  row.style.display = isDelivery ? 'block' : 'none';
-  if (!isDelivery) {
+  row.style.display = sel.value === 'delivery' ? 'block' : 'none';
+  if (sel.value !== 'delivery') {
     var inp = document.getElementById('ae_deliveryFee');
     if (inp) inp.value = '0';
   }
 };
 </script>
-</body>
+<script>
+function _aeDfRecalc(){ if(typeof aeRecalcAll==='function') aeRecalcAll(); else if(typeof aeCalcRemaining==='function') aeCalcRemaining(); }
+</script>
+<script>
+/* ═══ STATUS FILTER + ADMIN CACHE ═══ */
+window.__adminStatus = 'all';
+
+function _getOrderStatus(o) {
+  if (o.receivedBy)        return 'received';
+  if (o.sentToTrackerAt)   return 'sent';
+  return 'new';
+}
+
+function _renderAdminStatusBtns() {
+  var box = document.getElementById('adminStatusFilter'); if(!box) return;
+  var cur = window.__adminStatus || 'all';
+  var tabs = [
+    ['all',      '📋 الكل'],
+    ['new',      '🆕 جديد'],
+    ['sent',     '📤 أُرسل للمتابع'],
+    ['received', '✅ اتسلمت للعميل']
+  ];
+  box.innerHTML = tabs.map(function(t){
+    var on = (cur === t[0]);
+    return '<button onclick="adminStatusFilter(\''+t[0]+'\')" style="flex:1;padding:7px 4px;border-radius:9px;font-size:11px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;border:1.5px solid '+(on?'#2563eb':'#ddd')+';background:'+(on?'#2563eb':'#fff')+';color:'+(on?'#fff':'#555')+'">'+t[1]+'</button>';
+  }).join('');
+}
+
+function adminStatusFilter(status) {
+  window.__adminStatus = status;
+  _renderAdminStatusBtns();
+  var cls = window.__adminClass || 'all';
+  var orders = (window._adminOrdersCache||_allCachedOrders()).filter(function(o){ return !o.cancelled; });
+  if (cls==='normal')   orders = orders.filter(function(o){ return o.orderClass!=='special'; });
+  else if (cls==='special') orders = orders.filter(function(o){ return o.orderClass==='special'; });
+  if (status !== 'all') orders = orders.filter(function(o){ return _getOrderStatus(o) === status; });
+  renderAdminOrders(orders);
+}
+</script>
+
+<!-- SPECIAL TIER MODAL -->
+<div id="specialTierOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:99999;direction:rtl;font-family:'Cairo',sans-serif">
+  <div style="position:absolute;inset:0;overflow-y:auto;padding:12px">
+    <div style="background:#fff;border-radius:20px;max-width:520px;margin:0 auto;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.4)">
+      <div style="background:linear-gradient(135deg,#c2185b,#e91e62);padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
+        <div style="color:#fff;font-size:16px;font-weight:900">&#x2728; &#x637;&#x644;&#x628; &#x62a;&#x648;&#x631;&#x62a;&#x629; &#x62e;&#x627;&#x635;&#x629;</div>
+        <button onclick="closeSpecialTierModal()" style="background:rgba(255,255,255,.2);border:none;color:#fff;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer">&#x2715;</button>
+      </div>
+      <div id="stStepBar" style="background:#fdf2f8;padding:10px 20px;font-size:12px;color:#c2185b;font-weight:800;border-bottom:1px solid #fce7f3"></div>
+      <div id="stContent" style="padding:20px;max-height:65vh;overflow-y:auto"></div>
+      <div style="padding:16px 20px;background:#fafafa;border-top:1px solid #f0f0f0;display:flex;gap:10px">
+        <button id="stBtnPrev" onclick="stPrev()" style="flex:1;padding:12px;border:1.5px solid #ddd;background:#fff;color:#555;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">&#x2192; &#x627;&#x644;&#x633;&#x627;&#x628;&#x642;</button>
+        <button id="stBtnNext" onclick="stNext()" style="flex:2;padding:12px;background:linear-gradient(135deg,#c2185b,#e91e62);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:900;cursor:pointer;font-family:'Cairo',sans-serif">&#x627;&#x644;&#x62a;&#x627;&#x644;&#x64a; &#x2190;</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+var _ST={step:0,numTiers:2,tiers:[],generalNotes:''};
+var _ST_COLORS=['أبيض','كريمي','وردي فاتح','وردي','أحمر','أزرق سماوي','أزرق','أخضر','بنفسجي','أصفر','برتقالي','بني','ذهبي','فضي','أسود'];
+var _ST_TOPPINGS=['كريمة','شوكليتة','لوتس','كراميل','فواكه','جالاكسي','نص كريمة ونص شوكليتة','نص ونص مخصص','مخصص'];
+var _ST_DECO=['صور سكر','مجسمات صور','مجسمات عجين','ورود سكر','بدون صور','تصميم خاص'];
+function openSpecialTierModal(){_ST={step:0,numTiers:2,tiers:[],generalNotes:''};document.getElementById('specialTierOverlay').style.display='block';document.body.style.overflow='hidden';stRender();}
+function closeSpecialTierModal(){document.getElementById('specialTierOverlay').style.display='none';document.body.style.overflow='';}
+function stSave(){
+  var s=_ST.step;
+  if(s===0){var sel=document.querySelector('input[name="st_numTiers"]:checked');if(!sel){showToast('اختار عدد الأدوار');return false;}_ST.numTiers=+sel.value;_ST.tiers=Array.from({length:_ST.numTiers},function(_,i){return _ST.tiers[i]||{};});return true;}
+  if(s>=1&&s<=_ST.numTiers){
+    var t=_ST.tiers[s-1]=_ST.tiers[s-1]||{};
+    var g=function(id){var e=document.getElementById(id);return e?e.value.trim():'';};
+    t.type=g('st_type');t.topping=g('st_topping');
+    if(t.topping==='مخصص'||t.topping==='نص ونص مخصص') t.customTopping=g('st_customTopping');
+    t.diameter=g('st_diameter');t.color=g('st_colorInput')||g('st_color');
+    t.height=g('st_height');t.sponge=g('st_sponge');t.filling=g('st_filling');
+    t.deco=g('st_deco');if(t.deco==='تصميم خاص') t.decoText=g('st_decoText');
+    t.tierNotes=g('st_tierNotes');
+    if(!t.type){showToast('اختار نوع الكريمة');return false;}
+    if(!t.diameter){showToast('اختار قطر الدور');return false;}
+    return true;
+  }
+  if(s===_ST.numTiers+1){_ST.generalNotes=(document.getElementById('st_generalNotes')||{}).value||'';return true;}
+  return true;
+}
+function stPrev(){if(_ST.step===0){closeSpecialTierModal();return;}_ST.step--;stRender();}
+function stNext(){if(!stSave())return;if(_ST.step===_ST.numTiers+1){stSubmit();return;}_ST.step++;stRender();}
+</script><script>
+var _ST_TNAMES=['\u0627\u0644\u0623\u0648\u0644','\u0627\u0644\u062b\u0627\u0646\u064a','\u0627\u0644\u062b\u0627\u0644\u062b','\u0627\u0644\u0631\u0627\u0628\u0639','\u0627\u0644\u062e\u0627\u0645\u0633'];
+function stRender(){
+  var s=_ST.step,total=_ST.numTiers+2;
+  document.getElementById('stStepBar').innerHTML='\u0627\u0644\u062e\u0637\u0648\u0629 '+(s+1)+' \u0645\u0646 '+total+(s===0?' \u2014 \u0639\u062f\u062f \u0627\u0644\u0623\u062f\u0648\u0627\u0631':s<=_ST.numTiers?' \u2014 \u0645\u0648\u0627\u0635\u0641\u0627\u062a \u0627\u0644\u062f\u0648\u0631 '+(_ST_TNAMES[s-1]||s):' \u2014 \u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0639\u0627\u0645\u0629');
+  document.getElementById('stBtnPrev').textContent=s===0?'\u0625\u0644\u063a\u0627\u0621':'\u2192 \u0627\u0644\u0633\u0627\u0628\u0642';
+  document.getElementById('stBtnNext').textContent=s===_ST.numTiers+1?'\u2705 \u062a\u0623\u0643\u064a\u062f \u0627\u0644\u0637\u0644\u0628':'\u0627\u0644\u062a\u0627\u0644\u064a \u2190';
+  var box=document.getElementById('stContent');
+  if(s===0) box.innerHTML=stNumTiersHTML();
+  else if(s>=1&&s<=_ST.numTiers) box.innerHTML=stTierHTML(s);
+  else box.innerHTML='<div style="font-size:15px;font-weight:900;color:#333;margin-bottom:16px">\u0645\u0644\u0627\u062d\u0638\u0627\u062a \u0639\u0627\u0645\u0629</div><textarea id="st_generalNotes" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:Cairo,sans-serif;box-sizing:border-box;height:120px">'+(_ST.generalNotes||'')+'</textarea><div style="margin-top:16px;background:#fdf6e3;border:1.5px solid #f59e0b;border-radius:10px;padding:12px;font-size:12px;color:#92400e">\u26a0\ufe0f \u0627\u0644\u0633\u0639\u0631 \u064a\u062a\u062d\u062f\u062f \u0628\u0639\u062f \u0627\u0644\u0645\u0631\u0627\u062c\u0639\u0629</div>';
+}
+function stNumTiersHTML(){
+  return '<div style="font-size:15px;font-weight:900;margin-bottom:16px">\u0643\u0627\u0645 \u062f\u0648\u0631 \u0641\u064a \u0627\u0644\u062a\u0648\u0631\u062a\u0629\u061f</div>'+[2,3,4,5].map(function(n){return '<label style="display:flex;align-items:center;gap:12px;padding:14px;border:2px solid '+(_ST.numTiers===n?'#e91e62':'#eee')+';border-radius:12px;cursor:pointer;margin-bottom:10px;background:'+(_ST.numTiers===n?'#fff0f5':'#fff')+'"><input type="radio" name="st_numTiers" value="'+n+'" '+(_ST.numTiers===n?'checked':'')+' onchange="_ST.numTiers='+n+';stRender()" style="width:20px;height:20px;accent-color:#e91e62"><div><div style="font-weight:900;font-size:16px;color:#c2185b">'+n+' \u0623\u062f\u0648\u0627\u0631</div><div style="font-size:12px;color:#888">\u062a\u0648\u0631\u062a\u0629 \u0645\u0646 '+n+' \u0637\u0648\u0627\u0628\u0642</div></div></label>';}).join('');
+}
+function stBtnRow(id,opts,val){
+  return '<div style="display:flex;flex-wrap:wrap;gap:8px">'+opts.map(function(o){var on=(val===o);return '<button type="button" onclick="stPick(\''+id+'\',\''+o.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')" style="padding:7px 12px;border-radius:100px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#e91e62':'#ddd')+';background:'+(on?'#fff0f5':'#fff')+';color:'+(on?'#c2185b':'#555')+'">'+o+'</button>';}).join('')+'</div><input type="hidden" id="'+id+'" value="'+(val||'')+'">';
+}
+function stPick(id,val){
+  var inp=document.getElementById(id); if(!inp) return;
+  inp.value=val;
+  if(id==='st_topping'){var w=document.getElementById('st_ctw');if(w)w.style.display=(val==='\u0645\u062e\u0635\u0635'||val==='\u0646\u0635 \u0648\u0646\u0635 \u0645\u062e\u0635\u0635')?'block':'none';}
+  if(id==='st_deco'){var w=document.getElementById('st_dtw');if(w)w.style.display=(val==='\u062a\u0635\u0645\u064a\u0645 \u062e\u0627\u0635')?'block':'none';}
+  var prev=inp.previousSibling;
+  if(prev&&prev.querySelectorAll){prev.querySelectorAll('button').forEach(function(b){var bv=b.textContent;b.style.border='1.5px solid '+(bv===val?'#e91e62':'#ddd');b.style.background=(bv===val?'#fff0f5':'#fff');b.style.color=(bv===val?'#c2185b':'#555');});}
+}
+function stLbl(t){return '<div style="font-size:12px;font-weight:800;color:#555;margin:14px 0 6px">'+t+'</div>';}
+function stTierHTML(n){
+  var t=_ST.tiers[n-1]||{};
+  var h='<div style="font-size:15px;font-weight:900;color:#c2185b;margin-bottom:16px">\u0645\u0648\u0627\u0635\u0641\u0627\u062a \u0627\u0644\u062f\u0648\u0631 '+(_ST_TNAMES[n-1]||n)+'</div>';
+  h+=stLbl('\u0646\u0648\u0639 \u0627\u0644\u0643\u0631\u064a\u0645\u0629 / \u0627\u0644\u063a\u0637\u0627\u0621 *')+stBtnRow('st_type',['\u0643\u0631\u064a\u0645\u0629','\u0639\u062c\u064a\u0646 \u0633\u0643\u0631'],t.type);
+  h+=stLbl('\u0627\u0644\u062a\u0648\u0628\u064a\u0646\u062c')+stBtnRow('st_topping',_ST_TOPPINGS,t.topping);
+  h+='<div id="st_ctw" style="display:'+(t.topping==='\u0645\u062e\u0635\u0635'||t.topping==='\u0646\u0635 \u0648\u0646\u0635 \u0645\u062e\u0635\u0635'?'block':'none')+';margin-top:8px"><input id="st_customTopping" placeholder="\u0627\u0643\u062a\u0628 \u0627\u0644\u062a\u0648\u0628\u064a\u0646\u062c..." value="'+(t.customTopping||'')+'" style="width:100%;padding:10px;border:1.5px solid #e91e62;border-radius:10px;font-family:Cairo,sans-serif;box-sizing:border-box"></div>';
+  h+=stLbl('\u0642\u0637\u0631 \u0627\u0644\u062f\u0648\u0631 (\u0633\u0645) *')+stBtnRow('st_diameter',['20','22','24','26','28','30','32','34','36','40'],t.diameter);
+  h+=stLbl('\u0627\u0644\u0644\u0648\u0646');
+  h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">'+_ST_COLORS.map(function(c){var on=(t.color===c);return '<button type="button" onclick="document.getElementById(\'st_colorInput\').value=\''+c+'\';document.getElementById(\'st_color\').value=\''+c+'\'" style="padding:5px 10px;border-radius:100px;font-size:12px;cursor:pointer;border:1.5px solid '+(on?'#e91e62':'#ddd')+';background:'+(on?'#fff0f5':'#fff')+';color:'+(on?'#c2185b':'#555')+'">'+c+'</button>';}).join('')+'</div><input id="st_colorInput" placeholder="\u0623\u0648 \u0627\u0643\u062a\u0628 \u0627\u0644\u0644\u0648\u0646..." value="'+(t.color||'')+'" oninput="document.getElementById(\'st_color\').value=this.value" style="width:100%;padding:9px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:Cairo,sans-serif;box-sizing:border-box"><input type="hidden" id="st_color" value="'+(t.color||'')+'">';
+  h+=stLbl('\u0627\u0644\u0627\u0631\u062a\u0641\u0627\u0639 (\u0633\u0645)')+stBtnRow('st_height',['2 طبقات','3 طبقات','4 طبقات','5 طبقات','6 طبقات','7 طبقات','8 طبقات','9 طبقات','10 طبقات','11 طبقات','12 طبقات'],t.height);
+  h+=stLbl('\u0627\u0644\u0625\u0633\u0628\u0648\u0646\u0634')+stBtnRow('st_sponge',['\u0623\u0628\u064a\u0636','\u0628\u0646\u064a','\u0646\u0635 \u0648\u0646\u0635'],t.sponge);
+  h+=stLbl('\u0627\u0644\u062d\u0634\u0648')+stBtnRow('st_filling',['\u0628\u062f\u0648\u0646 \u062d\u0634\u0648','\u0645\u0643\u0633\u0631\u0627\u062a','\u0645\u0627\u0646\u062c\u0648','\u0641\u0631\u0627\u0648\u0644\u0629','\u062e\u0648\u062e','\u0645\u062e\u0635\u0635'],t.filling);
+  h+=stLbl('\u0648\u0635\u0641 \u0627\u0644\u0632\u064a\u0646\u0629')+stBtnRow('st_deco',_ST_DECO,t.deco);
+  h+='<div id="st_dtw" style="display:'+(t.deco==='\u062a\u0635\u0645\u064a\u0645 \u062e\u0627\u0635'?'block':'none')+';margin-top:8px"><textarea id="st_decoText" placeholder="\u0648\u0635\u0641 \u0627\u0644\u062a\u0635\u0645\u064a\u0645..." style="width:100%;padding:10px;border:1.5px solid #e91e62;border-radius:10px;font-family:Cairo,sans-serif;box-sizing:border-box;height:70px">'+(t.decoText||'')+'</textarea></div>';
+  h+=stLbl('\u0635\u0648\u0631\u0629 \u0645\u0631\u062c\u0639\u064a\u0629 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a)');
+  h+='<div style="border:2px dashed #ddd;border-radius:10px;padding:12px;text-align:center"><input type="file" id="st_refImg_'+n+'" accept="image/*" onchange="stImg(0,this,'+(n-1)+')" style="display:none"><button type="button" onclick="document.getElementById(\'st_refImg_'+n+'\').click()" style="padding:8px 18px;background:#f5f5f5;border:none;border-radius:8px;font-family:Cairo,sans-serif;cursor:pointer">\u0635\u0648\u0631\u0629</button><div id="st_rp_'+n+'" style="margin-top:8px">'+(t.refImg?'<img src="'+t.refImg+'" style="max-height:80px;border-radius:8px">':'<div style="color:#aaa;font-size:12px">\u0644\u0627 \u062a\u0648\u062c\u062f</div>')+'</div></div>';
+  h+=stLbl('\u0635\u0648\u0631 \u0634\u062e\u0635\u064a\u0629 (\u0627\u062e\u062a\u064a\u0627\u0631\u064a)');
+  h+='<div style="border:2px dashed #ddd;border-radius:10px;padding:12px;text-align:center"><input type="file" id="st_perImg_'+n+'" accept="image/*" multiple onchange="stImg(1,this,'+(n-1)+')" style="display:none"><button type="button" onclick="document.getElementById(\'st_perImg_'+n+'\').click()" style="padding:8px 18px;background:#f5f5f5;border:none;border-radius:8px;font-family:Cairo,sans-serif;cursor:pointer">\u0635\u0648\u0631</button><div id="st_pp_'+n+'" style="margin-top:6px">'+(t.perImgs&&t.perImgs.length?t.perImgs.map(function(img){return '<img src="'+img+'" style="max-height:60px;border-radius:6px;margin:2px">';}).join(''):'<div style="color:#aaa;font-size:12px">\u0644\u0627 \u062a\u0648\u062c\u062f</div>')+'</div></div>';
+  h+=stLbl('\u0645\u0644\u0627\u062d\u0638\u0627\u062a (\u0627\u062e\u062a\u064a\u0627\u0631\u064a)');
+  h+='<textarea id="st_tierNotes" style="width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:10px;font-family:Cairo,sans-serif;box-sizing:border-box;height:70px;resize:vertical">'+(t.tierNotes||'')+'</textarea>';
+  return h;
+}
+function stImg(type,input,ti){
+  if(!input.files||!input.files.length) return;
+  var t=_ST.tiers[ti]=_ST.tiers[ti]||{};
+  var n=ti+1;
+  if(type===0){var r=new FileReader();r.onload=function(e){t.refImg=e.target.result;var p=document.getElementById('st_rp_'+n);if(p)p.innerHTML='<img src="'+e.target.result+'" style="max-height:80px;border-radius:8px">';};r.readAsDataURL(input.files[0]);}
+  else{t.perImgs=t.perImgs||[];Array.from(input.files).forEach(function(f){var r=new FileReader();r.onload=function(e){t.perImgs.push(e.target.result);var p=document.getElementById('st_pp_'+n);if(p)p.innerHTML=t.perImgs.map(function(img){return '<img src="'+img+'" style="max-height:60px;border-radius:6px;margin:2px">';}).join('');};r.readAsDataURL(f);});}
+}
+function stSubmit(){
+  if(!stSave()) return;
+  order.isSpecialTier=true;order.tiers=_ST.tiers;order.numTiers=_ST.numTiers;order.specialNotes=_ST.generalNotes;
+  order.size='\u062e\u0627\u0635 \u2014 '+_ST.numTiers+' \u0623\u062f\u0648\u0627\u0631';order.layers=_ST.numTiers+' \u0623\u062f\u0648\u0627\u0631';order.sizePrice=0;
+  order.topping=_ST.tiers.map(function(t,i){return '\u062f\u0648\u0631 '+(i+1)+': '+(t.topping||'\u2014');}).join(' | ');
+  order.sponge=_ST.tiers.map(function(t,i){return '\u062f\u0648\u0631 '+(i+1)+': '+(t.sponge||'\u2014');}).join(' | ');
+  order.filling=_ST.tiers.map(function(t,i){return '\u062f\u0648\u0631 '+(i+1)+': '+(t.filling||'\u2014');}).join(' | ');
+  order.deco=_ST.tiers.map(function(t,i){return '\u062f\u0648\u0631 '+(i+1)+': '+(t.deco||'\u2014');}).join(' | ');
+  order.desc=_ST.generalNotes;
+  /* collect first ref image → existing WA image-share mechanism */
+  var _firstImg = null;
+  for (var _si=0; _si<_ST.tiers.length; _si++) {
+    if (_ST.tiers[_si].refImg) { _firstImg = _ST.tiers[_si].refImg; break; }
+    if (_ST.tiers[_si].perImgs && _ST.tiers[_si].perImgs.length) { _firstImg = _ST.tiers[_si].perImgs[0]; break; }
+  }
+  if (_firstImg) order.imgBase64 = _firstImg;
+  /* count total images for WA note */
+  var _totalImgs = _ST.tiers.reduce(function(s,t){
+    return s + (t.refImg?1:0) + (t.perImgs?t.perImgs.length:0);
+  }, 0);
+  if (_totalImgs > 0) order._specialImgCount = _totalImgs;
+  closeSpecialTierModal();
+  document.querySelectorAll('.size-card').forEach(function(c){c.classList.remove('selected');});
+  showToast('\u2705 \u062a\u0648\u0631\u062a\u0629 \u062e\u0627\u0635\u0629 \u2014 '+_ST.numTiers+' \u0623\u062f\u0648\u0627\u0631');
+  /* go straight to final review — skip step 3 */
+  if(typeof goStep==='function') goStep(4);
+}
+</script></body>
 </html>

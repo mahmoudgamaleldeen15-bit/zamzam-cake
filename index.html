@@ -781,6 +781,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
     <div style="display:flex;background:#f5f5f5;border-radius:12px;padding:4px;margin-bottom:14px;gap:4px">
       <button onclick="adminTab('orders')" id="tabOrders" style="flex:1;padding:8px;border-radius:9px;border:none;background:var(--rose);color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">📦 الطلبات</button>
       <button onclick="adminTab('ratings')" id="tabRatings" style="flex:1;padding:8px;border-radius:9px;border:none;background:none;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">⭐ التقييمات</button>
+      <button onclick="adminTab('balances')" id="tabBalances" style="flex:1;padding:8px;border-radius:9px;border:none;background:none;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif;position:relative">💰 البواقي<span id="balancesBadge" style="display:none;position:absolute;top:-4px;left:-4px;background:#dc2626;color:#fff;border-radius:100px;padding:1px 6px;font-size:10px;font-weight:900;box-shadow:0 2px 4px rgba(220,38,38,.4)">0</span></button>
       <button onclick="adminTab('settings')" id="tabSettings" style="flex:1;padding:8px;border-radius:9px;border:none;background:none;color:#666;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">⚙️ الإعدادات</button>
     </div>
 
@@ -810,6 +811,11 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
     <!-- RATINGS TAB -->
     <div id="adminTabRatings" style="display:none">
       <div id="adminRatings" style="font-size:13px;color:var(--text2)">جاري التحميل...</div>
+    </div>
+
+    <!-- BALANCES TAB (💰 المبالغ المستحقة / Outstanding Balances) -->
+    <div id="adminTabBalances" style="display:none">
+      <div id="balancesContainer" style="font-size:13px;color:var(--text2)">جاري تحميل البواقي...</div>
     </div>
 
     <!-- SETTINGS TAB -->
@@ -1733,7 +1739,7 @@ function saveAdminSettings() {
 // ADMIN TABS
 // ============================================================
 function adminTab(tab) {
-  ['orders','ratings','settings'].forEach(function(t) {
+  ['orders','ratings','balances','settings'].forEach(function(t) {
     var tabEl = document.getElementById('adminTab' + t.charAt(0).toUpperCase() + t.slice(1));
     var btnEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.style.display = t === tab ? 'block' : 'none';
@@ -1744,6 +1750,7 @@ function adminTab(tab) {
   });
   if (tab === 'ratings') loadAdminRatings();
   if (tab === 'settings') { buildSizePricesAdmin(); buildWalletsAdmin(); }
+  if (tab === 'balances' && typeof renderBalancesTab === 'function') renderBalancesTab();
 }
 
 function loadAdminOrders() {
@@ -3161,7 +3168,7 @@ function saveAdminSettings() {
 // ADMIN TABS
 // ============================================================
 function adminTab(tab) {
-  ['orders','ratings','settings'].forEach(function(t) {
+  ['orders','ratings','balances','settings'].forEach(function(t) {
     var tabEl = document.getElementById('adminTab' + t.charAt(0).toUpperCase() + t.slice(1));
     var btnEl = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
     if (tabEl) tabEl.style.display = t === tab ? 'block' : 'none';
@@ -3172,6 +3179,7 @@ function adminTab(tab) {
   });
   if (tab === 'ratings') loadAdminRatings();
   if (tab === 'settings') { buildSizePricesAdmin(); buildWalletsAdmin(); }
+  if (tab === 'balances' && typeof renderBalancesTab === 'function') renderBalancesTab();
 }
 
 function loadAdminOrders() {
@@ -4425,7 +4433,11 @@ function saveTrackerPricing(orderId) {
 // ============================================================
 function printTodayOrders() {
   var today = getTodayStr();
-  var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+  // ✅ FIX: قراءة من _rtMap (متزامن مع Firebase) لو موجود عشان يشتغل على أي جهاز
+  // الـ fallback هو localStorage لو _rtMap لسه ما اتحمّلش
+  var orders = (typeof _rtMap!=='undefined' && _rtMap && Object.keys(_rtMap).length)
+    ? _rtArray()
+    : JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
   // ✅ استثناء الملغيات من الطباعة اليومية
   var todayOrders = sortByTime(orders.filter(function(o){
     return (o.clientDate||'')===today && !o.cancelled;
@@ -4835,7 +4847,7 @@ function renderAdminOrders(orders) {
     if(o.createdByRole==='branch') srcBadge = '<span style="font-size:9px;background:#ede9fe;color:#6d28d9;border-radius:6px;padding:2px 6px;margin-right:4px">🏬 فرع</span>';
     else if(o.createdByRole==='shift') srcBadge = '<span style="font-size:9px;background:#ccfbf1;color:#0f766e;border-radius:6px;padding:2px 6px;margin-right:4px">🌙 مسائي</span>';
     else if(o.createdByRole==='tracker') srcBadge = '<span style="font-size:9px;background:#fef3c7;color:#b45309;border-radius:6px;padding:2px 6px;margin-right:4px">📋 متابع</span>';
-    else if(o.createdByRole==='admin') srcBadge = '<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 6px;margin-right:4px">👑 مدير الحجز العام</span>';
+    else if(o.createdByRole==='admin') srcBadge = '<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 6px;margin-right:4px">👑 مدير إدارة الطلبات</span>';
 
     return '<div id="ocard_'+o.id+'" style="border:1.5px solid '+(isReceived?'#86efac':'var(--border)')+';border-radius:14px;padding:14px;margin-bottom:12px;background:'+(isReceived?'#f0fff4':'#fff')+'">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
@@ -8405,7 +8417,7 @@ function branchExit(){
       if(typeof adminEditorMode!=='undefined' && adminEditorMode==='create'){
         var bs=document.getElementById('branchSection');
         if(bs && bs.style.display!=='none' && _branchCreator){ base.createdBy=_branchCreator.name; base.createdByRole='branch'; }
-        else if(!base.createdBy){ base.createdBy='👑 مدير الحجز العام'; base.createdByRole='admin'; }
+        else if(!base.createdBy){ base.createdBy='👑 مدير إدارة الطلبات'; base.createdByRole='admin'; }
       }
       return base;
     };
@@ -11386,7 +11398,7 @@ function fixOldAdminLabel(){
     if(!targets.length){ box.innerHTML='<div style="text-align:center;padding:10px;color:#16a34a;font-size:12px">✅ مفيش طلبات قديمة محتاجة تصحيح</div>'; return; }
     var done=0;
     targets.forEach(function(key){
-      cakeDb.ref('cake_orders/'+key).update({createdBy:'👑 مدير الحجز العام'}).then(function(){
+      cakeDb.ref('cake_orders/'+key).update({createdBy:'👑 مدير إدارة الطلبات'}).then(function(){
         done++;
         box.innerHTML='<div style="text-align:center;padding:10px;color:#16a34a;font-size:12px">✅ اتصحّح '+done+' من '+targets.length+'</div>';
       }).catch(function(){});
@@ -11841,7 +11853,7 @@ function _currentEditorIdentity(){
   if(bs && bs.style.display!=='none' && typeof _branchCreator!=='undefined' && _branchCreator) return {name:_branchCreator.name, role:'branch'};
   var ss=document.getElementById('shiftSection');
   if(ss && ss.style.display!=='none' && typeof _shiftCreator!=='undefined' && _shiftCreator) return {name:_shiftCreator.name, role:'shift'};
-  return {name:'👑 مدير الحجز العام', role:'admin'};
+  return {name:'👑 مدير إدارة الطلبات', role:'admin'};
 }
 function _fmtEditedAt(iso){
   try{
@@ -12288,5 +12300,1160 @@ function stSubmit(){
   /* go straight to final review — skip step 3 */
   if(typeof goStep==='function') goStep(4);
 }
-</script></body>
+</script>
+
+<!-- ============================================================
+     💰 نظام إدارة البواقي المستحقة (Outstanding Balances)
+     المراحل: 1 (الأساس) + 2 (الصفحة والـ Dashboard) + 3 (البحث والفلاتر)
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // ==========================================================
+  // 🎯 المرحلة 1: الأساس — Helper Functions
+  // ==========================================================
+
+  /** يحدد إذا كان الطلب فيه باقي مستحق (غير مدفوع بالكامل) */
+  function _isOutstanding(o){
+    if(!o) return false;
+    if(o.cancelled) return false;                  // استثناء الملغيات
+    if(o.balanceSettled) return false;             // استثناء المسواة (المرحلة 4 لاحقاً)
+    var price = parseFloat(o.finalPrice)||0;
+    var dep   = parseFloat(o.deposit)||0;
+    if(price <= 0) return false;                   // مفيش سعر متحدد → مش بواقي
+    return (price - dep) > 0;
+  }
+
+  /** يحسب مبلغ الباقي المستحق */
+  function _outstandingAmount(o){
+    var price = parseFloat(o.finalPrice)||0;
+    var dep   = parseFloat(o.deposit)||0;
+    return Math.max(0, price - dep);
+  }
+
+  /** يحسب عمر الدين بالأيام (من تاريخ إنشاء الطلب) */
+  function _outstandingAge(o){
+    try{
+      var created = o.createdAt || o.clientDate || '';
+      if(!created) return 0;
+      var d = new Date(created);
+      if(isNaN(d.getTime())) return 0;
+      var now = new Date();
+      var diff = Math.floor((now - d) / (1000*60*60*24));
+      return Math.max(0, diff);
+    }catch(e){ return 0; }
+  }
+
+  /** يرجع لون + تصنيف حسب عمر الدين */
+  function _ageColor(days){
+    // أحمر داكن ← أحمر ← برتقالي ← أصفر ← رمادي
+    if(days >= 30) return { bg:'#7f1d1d', fg:'#fff', label:'🚨 متأخر جداً (30+ يوم)' };
+    if(days >= 15) return { bg:'#dc2626', fg:'#fff', label:'🔴 متأخر (15+ يوم)' };
+    if(days >= 7 ) return { bg:'#ea580c', fg:'#fff', label:'🟠 متأخر (7+ أيام)' };
+    if(days >= 3 ) return { bg:'#f59e0b', fg:'#fff', label:'🟡 متأخر (3+ أيام)' };
+    if(days >= 1 ) return { bg:'#eab308', fg:'#fff', label:'⏳ (يوم أو أكثر)' };
+    return             { bg:'#94a3b8', fg:'#fff', label:'⚪ اليوم' };
+  }
+
+  /** يرجع كل الطلبات اللي فيها بواقي — يفضّل _rtMap (Firebase-synced) على localStorage */
+  function _getOutstandingOrders(){
+    var source = [];
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap && Object.keys(_rtMap).length){
+        source = Object.keys(_rtMap).map(function(k){ return _rtMap[k]; });
+      }else{
+        source = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      }
+    }catch(e){ source = []; }
+    return source.filter(_isOutstanding);
+  }
+
+  /** ترتيب: الأقدم أولاً → الأعلى قيمة → الأحدث */
+  function _sortOutstanding(arr){
+    return arr.slice().sort(function(a,b){
+      // 1) الأقدم أولاً (بالأيام)
+      var ageA = _outstandingAge(a), ageB = _outstandingAge(b);
+      if(ageB !== ageA) return ageB - ageA;
+      // 2) الأعلى قيمة
+      var amtA = _outstandingAmount(a), amtB = _outstandingAmount(b);
+      if(amtB !== amtA) return amtB - amtA;
+      // 3) الأحدث (createdAt)
+      return (b.createdAt||'').localeCompare(a.createdAt||'');
+    });
+  }
+
+  // ==========================================================
+  // 🎯 المرحلة 3: البحث والفلترة
+  // ==========================================================
+
+  var _balancesFilters = {
+    q: '',               // نص البحث
+    period: 'all',       // all | today | yesterday | 7 | 30 | month
+    payMethod: 'all',    // all | cash | wallet
+    minAmount: '',       // نطاق حد أدنى
+    maxAmount: ''        // نطاق حد أقصى
+  };
+
+  function _dateInPeriod(dateStr, period){
+    if(period === 'all') return true;
+    if(!dateStr) return false;
+    var d;
+    try{ d = new Date(dateStr); if(isNaN(d.getTime())) return false; }catch(e){ return false; }
+    var now = new Date();
+    var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var yStart = new Date(todayStart.getTime() - 86400000);
+    var d7 = new Date(todayStart.getTime() - 7*86400000);
+    var d30 = new Date(todayStart.getTime() - 30*86400000);
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    if(period === 'today')     return d >= todayStart;
+    if(period === 'yesterday') return d >= yStart && d < todayStart;
+    if(period === '7')         return d >= d7;
+    if(period === '30')        return d >= d30;
+    if(period === 'month')     return d >= monthStart;
+    return true;
+  }
+
+  function _matchBalanceSearch(o, q){
+    if(!q) return true;
+    q = q.toLowerCase().trim();
+    return ((o.clientName||'').toLowerCase().indexOf(q) > -1) ||
+           ((o.clientPhone||'').indexOf(q) > -1) ||
+           ((o.clientWa||'').indexOf(q) > -1) ||
+           ((o.id||'').toLowerCase().indexOf(q) > -1);
+  }
+
+  function _applyBalancesFilters(orders){
+    var f = _balancesFilters;
+    return orders.filter(function(o){
+      if(!_matchBalanceSearch(o, f.q)) return false;
+      // فلتر المدة يعتمد على تاريخ إنشاء الطلب
+      if(!_dateInPeriod(o.createdAt || o.clientDate, f.period)) return false;
+      if(f.payMethod !== 'all' && (o.payMethod||'cash') !== f.payMethod) return false;
+      var amt = _outstandingAmount(o);
+      if(f.minAmount !== '' && amt < parseFloat(f.minAmount)) return false;
+      if(f.maxAmount !== '' && amt > parseFloat(f.maxAmount)) return false;
+      return true;
+    });
+  }
+
+  // ==========================================================
+  // 🎯 المرحلة 2: العرض — Dashboard + الجدول
+  // ==========================================================
+
+  function _buildDashboardHtml(allOutstanding){
+    var total   = allOutstanding.reduce(function(s,o){ return s + _outstandingAmount(o); }, 0);
+    var count   = allOutstanding.length;
+    var biggest = allOutstanding.reduce(function(m,o){ var a=_outstandingAmount(o); return a>m?a:m; }, 0);
+    var oldestDays = allOutstanding.reduce(function(m,o){ var a=_outstandingAge(o); return a>m?a:m; }, 0);
+    var uniqueCustomers = new Set(allOutstanding.map(function(o){
+      return (o.clientPhone||'') + '|' + (o.clientName||'');
+    })).size;
+    var avg = count > 0 ? Math.round(total/count) : 0;
+
+    function _card(icon, num, label, color){
+      return '<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:10px;text-align:center">'+
+        '<div style="font-size:20px">'+icon+'</div>'+
+        '<div style="font-size:18px;font-weight:900;color:'+color+';margin-top:2px">'+num+'</div>'+
+        '<div style="font-size:10px;color:var(--text2);font-weight:700;margin-top:2px">'+label+'</div>'+
+      '</div>';
+    }
+
+    return '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'+
+      _card('📊', count,          'طلبات فيها باقي',      '#c2185b') +
+      _card('💰', total+' ج',     'إجمالي البواقي',       '#dc2626') +
+      _card('👥', uniqueCustomers,'عدد العملاء',          '#7c3aed') +
+      _card('🏆', biggest+' ج',   'أكبر مبلغ مستحق',      '#ea580c') +
+      _card('⏰', oldestDays+' يوم','أقدم مبلغ مستحق',    '#7f1d1d') +
+      _card('📈', avg+' ج',       'متوسط الباقي',         '#0891b2') +
+    '</div>';
+  }
+
+  function _buildFiltersHtml(){
+    var f = _balancesFilters;
+    function _chip(val, label){
+      var active = f.period === val;
+      return '<button onclick="__setBalancePeriod(\''+val+'\')" style="padding:6px 10px;border-radius:8px;border:1.5px solid '+
+        (active?'#c2185b':'var(--border)')+';background:'+(active?'#c2185b':'#fff')+';color:'+
+        (active?'#fff':'#666')+';font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">'+label+'</button>';
+    }
+    return '<div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:10px;margin-bottom:12px">'+
+      // البحث
+      '<div style="display:flex;gap:6px;margin-bottom:8px">'+
+        '<input type="text" id="balancesSearchInput" value="'+(f.q||'').replace(/"/g,'&quot;')+'" placeholder="🔍 بحث بالاسم / الرقم / الهاتف / رقم الطلب" '+
+          'oninput="__setBalanceQuery(this.value)" '+
+          'style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif"/>'+
+      '</div>'+
+      // فلاتر المدة
+      '<div style="font-size:11px;font-weight:800;color:var(--rose-dark);margin-bottom:4px">📅 حسب المدة</div>'+
+      '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">'+
+        _chip('all','الكل')+ _chip('today','اليوم')+ _chip('yesterday','أمس')+
+        _chip('7','آخر 7 أيام')+ _chip('30','آخر 30 يوم')+ _chip('month','هذا الشهر')+
+      '</div>'+
+      // فلاتر إضافية
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
+        '<select id="balancesPayFilter" onchange="__setBalancePayMethod(this.value)" '+
+          'style="padding:7px;border:1.5px solid var(--border);border-radius:8px;font-size:11px;font-family:\'Cairo\',sans-serif;background:#fff">'+
+          '<option value="all"'+(f.payMethod==='all'?' selected':'')+'>💳 كل طرق الدفع</option>'+
+          '<option value="cash"'+(f.payMethod==='cash'?' selected':'')+'>💵 كاش</option>'+
+          '<option value="wallet"'+(f.payMethod==='wallet'?' selected':'')+'>📱 محفظة</option>'+
+        '</select>'+
+        '<input type="number" placeholder="💰 حد أدنى" value="'+f.minAmount+'" oninput="__setBalanceMin(this.value)" '+
+          'style="padding:7px;border:1.5px solid var(--border);border-radius:8px;font-size:11px;font-family:\'Cairo\',sans-serif"/>'+
+        '<input type="number" placeholder="💰 حد أقصى" value="'+f.maxAmount+'" oninput="__setBalanceMax(this.value)" '+
+          'style="padding:7px;border:1.5px solid var(--border);border-radius:8px;font-size:11px;font-family:\'Cairo\',sans-serif"/>'+
+      '</div>'+
+      // زر تفريغ الفلاتر
+      '<div style="margin-top:8px;text-align:center">'+
+        '<button onclick="__resetBalanceFilters()" style="padding:6px 14px;background:#f5f5f5;border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:700;color:#666;cursor:pointer;font-family:\'Cairo\',sans-serif">🔄 مسح كل الفلاتر</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  function _buildOrderCardHtml(o){
+    var amt   = _outstandingAmount(o);
+    var age   = _outstandingAge(o);
+    var color = _ageColor(age);
+    var price = parseFloat(o.finalPrice)||0;
+    var dep   = parseFloat(o.deposit)||0;
+    var payLabel = (o.payMethod === 'wallet')
+        ? ('📱 '+(o.walletName||'محفظة')+' — '+(o.walletMgr||'-'))
+        : '💵 كاش';
+    var dateStr = (o.clientDate || '').substring(0,10);
+    var timeStr = (typeof to12Hour === 'function') ? to12Hour(o.clientTime||'') : (o.clientTime||'');
+    var branchMap = {factory:'المصنع 🏭', main:'الفرع الرئيسي', shobramlees:'شبراملس', delivery:'توصيل 🚚', pickup:'المصنع 🏭', other:(o.otherBranch||'أخرى')};
+    var branch = branchMap[o.orderType] || o.orderType || '—';
+    var idShort = (o.id||'').replace(/^cake_/,'').substring(0,10);
+
+    var openFn = "openOrderDetail('"+ (o.id||'') +"')";
+    // زر واتساب (placeholder — المرحلة 6 هتفعل الرسالة الجاهزة)
+    var waNum = (o.clientWa||o.clientPhone||'').replace(/[^0-9]/g,'');
+    if(waNum && !waNum.startsWith('20') && waNum.length===11 && waNum.startsWith('0')) waNum = '20'+waNum.substring(1);
+    var waMsg = encodeURIComponent(
+      'السلام عليكم '+(o.clientName||'')+'،\n'+
+      'نحيطكم علماً بوجود مبلغ مستحق متبقٍ على طلبكم رقم ('+idShort+') قيمته '+amt+' ج.م\n'+
+      'نرجو التكرم بسداد المبلغ في أقرب وقت.\n'+
+      'شكراً لتعاملكم معنا — زمزم ديزيرت 🎂'
+    );
+    var waLink = waNum ? ('https://wa.me/'+waNum+'?text='+waMsg) : '';
+
+    return '<div style="background:#fff;border-right:5px solid '+color.bg+';border:1.5px solid #fecaca;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 2px 6px rgba(220,38,38,.08)">'+
+      // الهيدر
+      '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:8px">'+
+        '<div style="flex:1;cursor:pointer" onclick="'+openFn+'">'+
+          '<div style="font-size:15px;font-weight:900;color:#111">'+ (o.clientName||'-') +'</div>'+
+          '<div style="font-size:11px;color:var(--text2);margin-top:2px">#'+idShort+' · '+ (o.clientPhone||'-') +'</div>'+
+        '</div>'+
+        '<div style="text-align:center;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;padding:6px 10px;min-width:90px">'+
+          '<div style="font-size:10px;color:#7f1d1d;font-weight:700">💰 المتبقي</div>'+
+          '<div style="font-size:18px;font-weight:900;color:#dc2626">'+amt+' ج.م</div>'+
+        '</div>'+
+      '</div>'+
+      // شريط عمر الدين
+      '<div style="background:'+color.bg+';color:'+color.fg+';border-radius:8px;padding:5px 10px;font-size:11px;font-weight:800;margin-bottom:8px;text-align:center">'+
+        color.label +
+        (age > 0 ? ' · منذ '+age+' يوم' : ' · جديد')+
+      '</div>'+
+      // تفاصيل الطلب
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:#555;margin-bottom:8px">'+
+        '<div>📅 <b>الاستلام:</b> '+ dateStr +' '+timeStr+'</div>'+
+        '<div>🏪 <b>الفرع:</b> '+ branch +'</div>'+
+        '<div>💵 <b>السعر:</b> '+price+' ج</div>'+
+        '<div>💸 <b>المدفوع:</b> '+dep+' ج</div>'+
+        '<div style="grid-column:1/-1">'+payLabel+'</div>'+
+        (o.receivedBy ? '<div style="grid-column:1/-1">✅ <b>استلمه:</b> '+o.receivedBy+'</div>' : '') +
+      '</div>'+
+      // الأزرار
+      '<div style="display:flex;gap:6px">'+
+        '<button onclick="'+openFn+'" style="flex:1;padding:8px;background:linear-gradient(135deg,var(--rose),var(--rose-dark));color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">📄 التفاصيل</button>'+
+        (waLink ? '<a href="'+waLink+'" target="_blank" style="flex:1;padding:8px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif;text-decoration:none;text-align:center">💬 واتساب</a>' : '')+
+      '</div>'+
+    '</div>';
+  }
+
+  function _emptyStateHtml(hasFilters){
+    if(hasFilters){
+      return '<div style="text-align:center;padding:40px 20px;color:var(--text2)">'+
+        '<div style="font-size:48px;margin-bottom:10px">🔍</div>'+
+        '<div style="font-size:14px;font-weight:800">مفيش نتائج للفلاتر دي</div>'+
+        '<div style="font-size:12px;margin-top:6px">جرب تمسح الفلاتر أو تغيّرها</div>'+
+      '</div>';
+    }
+    return '<div style="text-align:center;padding:40px 20px;color:#16a34a">'+
+      '<div style="font-size:48px;margin-bottom:10px">✅</div>'+
+      '<div style="font-size:16px;font-weight:900">مفيش بواقي مستحقة</div>'+
+      '<div style="font-size:12px;color:var(--text2);margin-top:6px">كل الطلبات مدفوعة بالكامل 🎉</div>'+
+    '</div>';
+  }
+
+  // ==========================================================
+  // 🎨 الرندر الرئيسي للتاب
+  // ==========================================================
+  function renderBalancesTab(){
+    var container = document.getElementById('balancesContainer');
+    if(!container) return;
+
+    var all = _sortOutstanding(_getOutstandingOrders());
+    var filtered = _sortOutstanding(_applyBalancesFilters(all));
+    var f = _balancesFilters;
+    var hasFilters = f.q || f.period!=='all' || f.payMethod!=='all' || f.minAmount || f.maxAmount;
+
+    var html = '';
+    // Dashboard على أساس الكل (مش الفلترة) عشان الأرقام تكون شاملة
+    html += _buildDashboardHtml(all);
+    // الفلاتر
+    html += _buildFiltersHtml();
+
+    // ملاحظة عن الترتيب
+    html += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px;padding:6px 10px;background:#fef9c3;border-radius:8px;text-align:center">'+
+      'الترتيب: الأقدم أولاً ← الأعلى قيمة ← الأحدث · <b>عرض: '+filtered.length+'</b>'+
+      (hasFilters ? ' من أصل '+all.length : '') +
+    '</div>';
+
+    // القائمة أو الفارغ
+    if(!filtered.length){
+      html += _emptyStateHtml(!!hasFilters);
+    }else{
+      html += filtered.map(_buildOrderCardHtml).join('');
+    }
+
+    container.innerHTML = html;
+  }
+
+  // ==========================================================
+  // 🔴 تحديث الـ Badge على زر التبويبة
+  // ==========================================================
+  function updateBalancesBadge(){
+    var badge = document.getElementById('balancesBadge');
+    if(!badge) return;
+    var count = _getOutstandingOrders().length;
+    if(count > 0){
+      badge.textContent = count > 99 ? '99+' : count;
+      badge.style.display = 'inline-block';
+    }else{
+      badge.style.display = 'none';
+    }
+  }
+
+  // ==========================================================
+  // 🔗 Event handlers للفلاتر (منفصلين ك global functions)
+  // ==========================================================
+  window.__setBalancePeriod = function(p){ _balancesFilters.period = p; renderBalancesTab(); };
+  window.__setBalancePayMethod = function(m){ _balancesFilters.payMethod = m; renderBalancesTab(); };
+  window.__setBalanceQuery = function(q){
+    _balancesFilters.q = q;
+    // debounce بسيط
+    clearTimeout(window.__balanceSearchTimer);
+    window.__balanceSearchTimer = setTimeout(function(){
+      var was = document.getElementById('balancesSearchInput');
+      var pos = was ? was.selectionStart : null;
+      renderBalancesTab();
+      // نحاول نرجّع الفوكس على البحث
+      var el = document.getElementById('balancesSearchInput');
+      if(el){ el.focus(); if(pos!==null){ try{ el.setSelectionRange(pos,pos); }catch(e){} } }
+    }, 300);
+  };
+  window.__setBalanceMin = function(v){
+    _balancesFilters.minAmount = v;
+    clearTimeout(window.__balanceAmtTimer);
+    window.__balanceAmtTimer = setTimeout(renderBalancesTab, 400);
+  };
+  window.__setBalanceMax = function(v){
+    _balancesFilters.maxAmount = v;
+    clearTimeout(window.__balanceAmtTimer);
+    window.__balanceAmtTimer = setTimeout(renderBalancesTab, 400);
+  };
+  window.__resetBalanceFilters = function(){
+    _balancesFilters = { q:'', period:'all', payMethod:'all', minAmount:'', maxAmount:'' };
+    renderBalancesTab();
+  };
+
+  // ==========================================================
+  // 🔓 كشف الفانكشنز globally
+  // ==========================================================
+  window.renderBalancesTab   = renderBalancesTab;
+  window.updateBalancesBadge = updateBalancesBadge;
+  window._isOutstanding      = _isOutstanding;
+  window._outstandingAmount  = _outstandingAmount;
+  window._outstandingAge     = _outstandingAge;
+  window._getOutstandingOrders = _getOutstandingOrders;
+
+  // ==========================================================
+  // 🚀 التهيئة: تحديث الـ badge عند التحميل + كل 15 ثانية + عند تحديث Firebase
+  // ==========================================================
+  function _initBadgeUpdater(){
+    try{ updateBalancesBadge(); }catch(e){}
+    // كل 15 ثانية عشان يمسك أي تغيير حصل عبر Firebase realtime
+    setInterval(function(){
+      try{
+        updateBalancesBadge();
+        // لو التاب مفتوحة، جدد المحتوى كمان
+        var tab = document.getElementById('adminTabBalances');
+        if(tab && tab.style.display !== 'none'){ renderBalancesTab(); }
+      }catch(e){}
+    }, 15000);
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _initBadgeUpdater);
+  }else{
+    _initBadgeUpdater();
+  }
+
+})();
+</script>
+
+<!-- ============================================================
+     💰 نظام إدارة البواقي — المراحل 4 + 7 + 9
+     4️⃣ التسوية + Audit Log
+     7️⃣ التصدير والطباعة (Excel / PDF / Print)
+     9️⃣ الصلاحيات (Admin كامل / Tracker view-only)
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // ==========================================================
+  // 🔑 تحديد صلاحية المستخدم الحالي
+  // ==========================================================
+  function _currentRole(){
+    // الأدمن مسجل دخول لو adminLogin مخفي
+    var adminLogin = document.getElementById('adminLogin');
+    if(adminLogin && adminLogin.style.display === 'none') return 'admin';
+    // المتابع
+    if(localStorage.getItem('zz_tracker_auth') === 'true') return 'tracker';
+    return 'guest';
+  }
+
+  function _currentUserName(){
+    var role = _currentRole();
+    if(role === 'tracker'){
+      return localStorage.getItem('zz_tracker_name') || 'متابع غير معروف';
+    }
+    if(role === 'admin'){
+      return localStorage.getItem('zz_cake_admin_name') || 'الأدمن';
+    }
+    return 'غير معروف';
+  }
+
+  function _deviceInfo(){
+    try{
+      var ua = navigator.userAgent || '';
+      var m = ua.match(/(Android|iPhone|iPad|Windows|Mac|Linux)/);
+      var b = ua.match(/(Chrome|Firefox|Safari|Edge|Opera)/);
+      return (m?m[1]:'unknown') + ' · ' + (b?b[1]:'browser');
+    }catch(e){ return 'unknown'; }
+  }
+
+  // ==========================================================
+  // 📝 كتابة سجل Audit في Firebase (دائم — لا يُحذف)
+  // ==========================================================
+  function _writeAuditLog(entry){
+    try{
+      if(typeof cakeDb === 'undefined' || !cakeDb){
+        // fallback: احفظ محلياً
+        var local = JSON.parse(localStorage.getItem('zz_balance_audit_local')||'[]');
+        local.push(entry);
+        localStorage.setItem('zz_balance_audit_local', JSON.stringify(local.slice(-500)));
+        return Promise.resolve();
+      }
+      var ref = cakeDb.ref('cake_balance_audit').push();
+      entry.id = ref.key;
+      return ref.set(entry).catch(function(err){
+        console.error('Audit save failed:', err);
+        // fallback محلي كمان
+        var local = JSON.parse(localStorage.getItem('zz_balance_audit_local')||'[]');
+        local.push(entry);
+        localStorage.setItem('zz_balance_audit_local', JSON.stringify(local.slice(-500)));
+      });
+    }catch(e){ return Promise.resolve(); }
+  }
+
+  // ==========================================================
+  // 📖 قراءة سجلات Audit لطلب معين
+  // ==========================================================
+  function _loadAuditForOrder(orderId){
+    return new Promise(function(resolve){
+      var records = [];
+      // محلي
+      try{
+        var local = JSON.parse(localStorage.getItem('zz_balance_audit_local')||'[]');
+        local.forEach(function(r){ if(r.orderId === orderId) records.push(r); });
+      }catch(e){}
+      // Firebase
+      if(typeof cakeDb !== 'undefined' && cakeDb){
+        cakeDb.ref('cake_balance_audit').orderByChild('orderId').equalTo(orderId).once('value')
+          .then(function(snap){
+            if(snap.exists()){
+              snap.forEach(function(c){
+                var v = c.val();
+                if(v && !records.find(function(x){ return x.id === v.id; })) records.push(v);
+              });
+            }
+            records.sort(function(a,b){ return (b.at||'').localeCompare(a.at||''); });
+            resolve(records);
+          })
+          .catch(function(){
+            records.sort(function(a,b){ return (b.at||'').localeCompare(a.at||''); });
+            resolve(records);
+          });
+      }else{
+        records.sort(function(a,b){ return (b.at||'').localeCompare(a.at||''); });
+        resolve(records);
+      }
+    });
+  }
+
+  // ==========================================================
+  // 4️⃣ المرحلة 4: نافذة التسوية
+  // ==========================================================
+  function openSettleModal(orderId){
+    // اجلب الطلب
+    var orders = [];
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap && Object.keys(_rtMap).length){
+        orders = Object.keys(_rtMap).map(function(k){ return _rtMap[k]; });
+      }else{
+        orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      }
+    }catch(e){ orders = []; }
+    var o = orders.find(function(x){ return x.id === orderId; });
+    if(!o){ if(typeof showToast==='function') showToast('❌ الطلب غير موجود'); return; }
+
+    var price = parseFloat(o.finalPrice)||0;
+    var dep   = parseFloat(o.deposit)||0;
+    var remaining = Math.max(0, price - dep);
+    if(remaining <= 0){ if(typeof showToast==='function') showToast('✅ الطلب مدفوع بالكامل بالفعل'); return; }
+
+    var now = new Date();
+    var todayStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    var nowTime = String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+    var overlay = document.createElement('div');
+    overlay.id = 'settleModalOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;padding:0;font-family:\'Cairo\',sans-serif';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:92vh;overflow-y:auto;direction:rtl;box-shadow:0 -6px 30px rgba(0,0,0,.3)">'+
+        // Header
+        '<div style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;padding:16px;border-radius:20px 20px 0 0;position:sticky;top:0;z-index:2">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center">'+
+            '<div>'+
+              '<div style="font-size:18px;font-weight:900">💵 تسوية الباقي</div>'+
+              '<div style="font-size:12px;opacity:.9;margin-top:2px">'+ (o.clientName||'-') +' — #'+ (o.id||'').replace(/^cake_/,'').substring(0,10) +'</div>'+
+            '</div>'+
+            '<button onclick="closeSettleModal()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;width:36px;height:36px;border-radius:100px;font-size:18px;font-weight:800;cursor:pointer">✕</button>'+
+          '</div>'+
+        '</div>'+
+        // Body
+        '<div style="padding:16px">'+
+          // ملخص
+          '<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:12px;padding:12px;margin-bottom:14px">'+
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">'+
+              '<div>💵 <b>السعر الكلي:</b> '+price+' ج</div>'+
+              '<div>💸 <b>المدفوع سابقاً:</b> '+dep+' ج</div>'+
+              '<div style="grid-column:1/-1;background:#fff;border-radius:8px;padding:8px;text-align:center;font-size:16px;font-weight:900;color:#dc2626">المتبقي: '+remaining+' ج.م</div>'+
+            '</div>'+
+          '</div>'+
+          // Form
+          '<div style="margin-bottom:10px">'+
+            '<label style="font-size:12px;font-weight:800;color:#166534">💰 المبلغ المستلم</label>'+
+            '<input type="number" id="settleAmount" value="'+remaining+'" min="1" max="'+remaining+'" style="width:100%;padding:10px;border:2px solid #86efac;border-radius:10px;font-size:16px;font-weight:800;font-family:\'Cairo\',sans-serif;margin-top:4px"/>'+
+            '<div style="font-size:10px;color:#666;margin-top:2px">الحد الأقصى: '+remaining+' ج (المتبقي)</div>'+
+          '</div>'+
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">'+
+            '<div>'+
+              '<label style="font-size:12px;font-weight:800">📅 تاريخ السداد</label>'+
+              '<input type="date" id="settleDate" value="'+todayStr+'" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif;margin-top:4px"/>'+
+            '</div>'+
+            '<div>'+
+              '<label style="font-size:12px;font-weight:800">🕐 وقت السداد</label>'+
+              '<input type="time" id="settleTime" value="'+nowTime+'" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif;margin-top:4px"/>'+
+            '</div>'+
+          '</div>'+
+          '<div style="margin-bottom:10px">'+
+            '<label style="font-size:12px;font-weight:800">👤 الموظف اللي استلم المبلغ</label>'+
+            '<input type="text" id="settleReceiver" value="'+ _currentUserName().replace(/"/g,'&quot;') +'" placeholder="اسم الموظف" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif;margin-top:4px"/>'+
+          '</div>'+
+          '<div style="margin-bottom:10px">'+
+            '<label style="font-size:12px;font-weight:800">💳 طريقة السداد</label>'+
+            '<select id="settleMethod" style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif;margin-top:4px;background:#fff">'+
+              '<option value="cash" selected>💵 كاش</option>'+
+              '<option value="wallet">📱 محفظة إلكترونية</option>'+
+              '<option value="bank">🏦 تحويل بنكي</option>'+
+              '<option value="other">🔗 أخرى</option>'+
+            '</select>'+
+          '</div>'+
+          '<div style="margin-bottom:14px">'+
+            '<label style="font-size:12px;font-weight:800">📝 ملاحظات (اختياري)</label>'+
+            '<textarea id="settleNote" placeholder="مثال: استلم على يد الكاشير، رقم إيصال..." style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:13px;font-family:\'Cairo\',sans-serif;margin-top:4px;min-height:60px;resize:vertical"></textarea>'+
+          '</div>'+
+          // أزرار
+          '<div style="display:flex;gap:8px">'+
+            '<button onclick="closeSettleModal()" style="flex:1;padding:12px;background:#f5f5f5;color:#666;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">إلغاء</button>'+
+            '<button onclick="confirmSettle(\''+orderId+'\')" style="flex:2;padding:12px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:900;cursor:pointer;font-family:\'Cairo\',sans-serif">✅ تأكيد التسوية</button>'+
+          '</div>'+
+        '</div>'+
+      '</div>';
+
+    document.body.appendChild(overlay);
+    // إغلاق عند الضغط خارج المودال
+    overlay.addEventListener('click', function(e){
+      if(e.target === overlay) closeSettleModal();
+    });
+  }
+
+  function closeSettleModal(){
+    var el = document.getElementById('settleModalOverlay');
+    if(el) el.remove();
+  }
+
+  // تأكيد التسوية — يحفظ في Firebase + Audit Log
+  function confirmSettle(orderId){
+    var amount   = parseFloat(document.getElementById('settleAmount').value)||0;
+    var date     = document.getElementById('settleDate').value;
+    var time     = document.getElementById('settleTime').value;
+    var receiver = (document.getElementById('settleReceiver').value||'').trim();
+    var method   = document.getElementById('settleMethod').value;
+    var note     = (document.getElementById('settleNote').value||'').trim();
+
+    // اجلب الطلب
+    var orders = [];
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap && Object.keys(_rtMap).length){
+        orders = Object.keys(_rtMap).map(function(k){ return _rtMap[k]; });
+      }else{
+        orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      }
+    }catch(e){ orders = []; }
+    var o = orders.find(function(x){ return x.id === orderId; });
+    if(!o){ if(typeof showToast==='function') showToast('❌ الطلب غير موجود'); return; }
+
+    var price = parseFloat(o.finalPrice)||0;
+    var dep   = parseFloat(o.deposit)||0;
+    var remaining = Math.max(0, price - dep);
+
+    // Validations
+    if(amount <= 0){ if(typeof showToast==='function') showToast('❌ اكتب مبلغ صحيح'); return; }
+    if(amount > remaining){ if(typeof showToast==='function') showToast('❌ المبلغ أكبر من المتبقي'); return; }
+    if(!receiver){ if(typeof showToast==='function') showToast('❌ اكتب اسم الموظف'); return; }
+
+    // نموذج التحديث
+    var newDeposit = dep + amount;
+    var isFullSettle = (newDeposit >= price);
+    var before = { deposit: dep, balanceSettled: !!o.balanceSettled };
+    var patch = {
+      deposit: newDeposit
+    };
+    if(isFullSettle){
+      patch.balanceSettled     = true;
+      patch.balanceSettledAt   = new Date().toISOString();
+      patch.balanceSettledBy   = receiver;
+      patch.balanceSettledDate = date;
+      patch.balanceSettledTime = time;
+      patch.balanceSettledMethod = method;
+      patch.balanceSettledAmount = amount;   // آخر مبلغ اتقفل بيه
+      patch.balanceSettledNote = note || '';
+    }
+
+    // نحدث localStorage
+    try{
+      var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      var idx = local.findIndex(function(x){ return x.id === orderId; });
+      if(idx > -1){
+        Object.assign(local[idx], patch);
+        localStorage.setItem('zz_cake_orders', JSON.stringify(local));
+      }
+    }catch(e){}
+    // نحدث _rtMap
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap[orderId]){
+        Object.assign(_rtMap[orderId], patch);
+      }
+    }catch(e){}
+
+    // نحدث Firebase
+    if(typeof cakeDb !== 'undefined' && cakeDb){
+      cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(err){
+        console.error('Firebase update failed:', err);
+      });
+    }
+
+    // Audit Log
+    var auditEntry = {
+      orderId: orderId,
+      clientName: o.clientName || '',
+      clientPhone: o.clientPhone || '',
+      action: isFullSettle ? 'settle_full' : 'settle_partial',
+      actionLabel: isFullSettle ? '✅ تسوية كاملة' : '💰 دفعة جزئية',
+      by: receiver,
+      byRole: _currentRole(),
+      at: new Date().toISOString(),
+      atLabel: date + ' ' + time,
+      device: _deviceInfo(),
+      amount: amount,
+      method: method,
+      note: note,
+      before: before,
+      after: { deposit: newDeposit, balanceSettled: !!isFullSettle },
+      priceAtTime: price,
+      remainingBefore: remaining,
+      remainingAfter: Math.max(0, price - newDeposit)
+    };
+
+    _writeAuditLog(auditEntry).then(function(){
+      closeSettleModal();
+      if(typeof showToast==='function'){
+        showToast(isFullSettle ? '✅ تمت التسوية بالكامل' : ('💰 تم تسجيل دفعة '+amount+' ج — متبقي '+auditEntry.remainingAfter+' ج'));
+      }
+      if(typeof window.renderBalancesTab === 'function') window.renderBalancesTab();
+      if(typeof window.updateBalancesBadge === 'function') window.updateBalancesBadge();
+      // تحديث لوحة الأدمن الرئيسية لو مفتوحة
+      if(typeof loadAdminOrders === 'function'){
+        try{ loadAdminOrders(); }catch(e){}
+      }
+    });
+  }
+
+  // ==========================================================
+  // 📜 عرض سجل Audit لطلب معين (Modal)
+  // ==========================================================
+  function openAuditLogModal(orderId){
+    _loadAuditForOrder(orderId).then(function(records){
+      var overlay = document.createElement('div');
+      overlay.id = 'auditLogOverlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;font-family:\'Cairo\',sans-serif';
+
+      var actionColors = {
+        settle_full:    { bg:'#dcfce7', border:'#16a34a', color:'#166534' },
+        settle_partial: { bg:'#fef9c3', border:'#eab308', color:'#854d0e' },
+        edit:           { bg:'#dbeafe', border:'#2563eb', color:'#1e40af' }
+      };
+
+      var rowsHtml = records.length ? records.map(function(r){
+        var col = actionColors[r.action] || { bg:'#f5f5f5', border:'#ddd', color:'#333' };
+        return '<div style="background:'+col.bg+';border-right:4px solid '+col.border+';border-radius:8px;padding:10px;margin-bottom:8px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px">'+
+            '<div style="font-weight:900;color:'+col.color+';font-size:13px">'+ (r.actionLabel||r.action||'-') +'</div>'+
+            '<div style="font-size:10px;color:#666">'+ (r.atLabel || (r.at||'').substring(0,16).replace('T',' ')) +'</div>'+
+          '</div>'+
+          (r.amount ? '<div style="font-size:14px;font-weight:800;color:'+col.color+';margin-bottom:4px">💰 '+r.amount+' ج.م</div>' : '')+
+          '<div style="font-size:11px;color:#555">👤 '+ (r.by||'-') +' <span style="opacity:.6">('+ (r.byRole||'-') +')</span></div>'+
+          (r.method ? '<div style="font-size:11px;color:#555">💳 '+r.method+'</div>' : '')+
+          (r.remainingAfter !== undefined ? '<div style="font-size:11px;color:#555">🧾 المتبقي بعد: '+r.remainingAfter+' ج</div>' : '')+
+          (r.note ? '<div style="font-size:11px;color:#555;background:#fff;border-radius:6px;padding:4px 8px;margin-top:4px">📝 '+r.note+'</div>' : '')+
+          '<div style="font-size:10px;color:#999;margin-top:4px">🖥️ '+ (r.device||'-') +'</div>'+
+        '</div>';
+      }).join('') : '<div style="text-align:center;padding:30px;color:#666"><div style="font-size:36px">📭</div><div style="font-size:14px;font-weight:800;margin-top:6px">مفيش سجلات بعد</div></div>';
+
+      overlay.innerHTML =
+        '<div style="background:#fff;border-radius:20px 20px 0 0;width:100%;max-width:500px;max-height:88vh;overflow-y:auto;direction:rtl">'+
+          '<div style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:14px;position:sticky;top:0;z-index:2;border-radius:20px 20px 0 0">'+
+            '<div style="display:flex;justify-content:space-between;align-items:center">'+
+              '<div>'+
+                '<div style="font-size:16px;font-weight:900">📜 سجل التعديلات (Audit)</div>'+
+                '<div style="font-size:11px;opacity:.9">لا يمكن حذف أي سجل — دائم</div>'+
+              '</div>'+
+              '<button onclick="closeAuditLogModal()" style="background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;width:34px;height:34px;border-radius:100px;font-size:16px;font-weight:800;cursor:pointer">✕</button>'+
+            '</div>'+
+          '</div>'+
+          '<div style="padding:14px">'+
+            '<div style="font-size:11px;color:#666;text-align:center;margin-bottom:10px">إجمالي السجلات: '+records.length+'</div>'+
+            rowsHtml +
+          '</div>'+
+        '</div>';
+
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', function(e){
+        if(e.target === overlay) closeAuditLogModal();
+      });
+    });
+  }
+
+  function closeAuditLogModal(){
+    var el = document.getElementById('auditLogOverlay');
+    if(el) el.remove();
+  }
+
+  // ==========================================================
+  // 🛡️ منع حذف طلب فيه باقي مستحق
+  // ==========================================================
+  function _wrapDeleteAdminOrder(){
+    if(typeof window.deleteAdminOrder !== 'function') return;
+    if(window.deleteAdminOrder.__balanceGuardWrapped) return;
+    var orig = window.deleteAdminOrder;
+    window.deleteAdminOrder = function(orderId){
+      // تحقق أول
+      var o = null;
+      try{
+        if(typeof _rtMap !== 'undefined' && _rtMap[orderId]) o = _rtMap[orderId];
+        if(!o){
+          var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+          o = local.find(function(x){ return x.id === orderId; });
+        }
+      }catch(e){}
+      if(o && typeof window._isOutstanding === 'function' && window._isOutstanding(o)){
+        var amt = window._outstandingAmount ? window._outstandingAmount(o) : 0;
+        alert('⛔ لا يمكن حذف الطلب!\n\nفيه مبلغ مستحق قيمته '+amt+' ج.م\n\nلازم تتم التسوية أولاً من تبويبة "💰 البواقي" قبل حذف الطلب.');
+        return;
+      }
+      // مفيش باقي → نفذ الحذف العادي
+      return orig.apply(this, arguments);
+    };
+    window.deleteAdminOrder.__balanceGuardWrapped = true;
+  }
+  // نلف كل شوية عشان نمسك أي redefinition
+  setInterval(_wrapDeleteAdminOrder, 3000);
+  setTimeout(_wrapDeleteAdminOrder, 500);
+
+  // ==========================================================
+  // 7️⃣ المرحلة 7: التصدير والطباعة
+  // ==========================================================
+
+  function _getFilteredOutstandingForExport(){
+    // نأخذ نفس البيانات اللي بتظهر في التاب
+    var all = [];
+    try{
+      if(typeof window._getOutstandingOrders === 'function'){
+        all = window._getOutstandingOrders();
+      }
+    }catch(e){}
+    return all;
+  }
+
+  function _sortForReport(arr){
+    return arr.slice().sort(function(a,b){
+      var ageA = window._outstandingAge ? window._outstandingAge(a) : 0;
+      var ageB = window._outstandingAge ? window._outstandingAge(b) : 0;
+      if(ageB !== ageA) return ageB - ageA;
+      var amtA = window._outstandingAmount ? window._outstandingAmount(a) : 0;
+      var amtB = window._outstandingAmount ? window._outstandingAmount(b) : 0;
+      return amtB - amtA;
+    });
+  }
+
+  function _reportHeaderHtml(title, subtitle, orders){
+    var total = orders.reduce(function(s,o){ return s + (window._outstandingAmount?window._outstandingAmount(o):0); }, 0);
+    var uniqueCustomers = new Set(orders.map(function(o){ return (o.clientPhone||'')+'|'+(o.clientName||''); })).size;
+    var oldest = orders.reduce(function(m,o){ var a=window._outstandingAge?window._outstandingAge(o):0; return a>m?a:m; }, 0);
+    return '<h1 style="text-align:center;color:#c2185b;margin:0 0 4px">🎂 زمزم ديزيرت — '+title+'</h1>'+
+      '<div style="text-align:center;color:#666;margin-bottom:12px;font-size:12px">'+subtitle+' · طُبع بواسطة: '+_currentUserName()+'</div>'+
+      '<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:12px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">'+
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+orders.length+'</div><div style="font-size:11px;color:#666">إجمالي الطلبات</div></div>'+
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#dc2626">'+total+' ج</div><div style="font-size:11px;color:#666">إجمالي البواقي</div></div>'+
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#c2185b">'+uniqueCustomers+'</div><div style="font-size:11px;color:#666">عدد العملاء</div></div>'+
+        '<div style="text-align:center"><div style="font-size:22px;font-weight:900;color:#7f1d1d">'+oldest+'</div><div style="font-size:11px;color:#666">أقدم مبلغ (يوم)</div></div>'+
+      '</div>';
+  }
+
+  function _reportTableHtml(orders){
+    var branchMap = {factory:'المصنع', main:'الرئيسي', shobramlees:'شبراملس', delivery:'توصيل', pickup:'المصنع', other:'أخرى'};
+    var rows = orders.map(function(o,i){
+      var amt = window._outstandingAmount ? window._outstandingAmount(o) : 0;
+      var age = window._outstandingAge ? window._outstandingAge(o) : 0;
+      var price = parseFloat(o.finalPrice)||0;
+      var dep = parseFloat(o.deposit)||0;
+      var idShort = (o.id||'').replace(/^cake_/,'').substring(0,10);
+      var branch = branchMap[o.orderType] || (o.otherBranch||o.orderType||'—');
+      var pay = o.payMethod === 'wallet' ? 'محفظة' : 'كاش';
+      return '<tr style="background:'+(i%2===0?'#fff':'#fafafa')+'">'+
+        '<td style="padding:6px;border:1px solid #ddd;text-align:center;font-weight:700">'+(i+1)+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+idShort+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd;font-weight:700">'+(o.clientName||'-')+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+(o.clientPhone||'-')+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+(o.clientDate||'-')+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+branch+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+price+' ج</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+dep+' ج</td>'+
+        '<td style="padding:6px;border:1px solid #ddd;font-weight:900;color:#dc2626">'+amt+' ج</td>'+
+        '<td style="padding:6px;border:1px solid #ddd;text-align:center;font-weight:700;color:'+(age>=15?'#dc2626':(age>=7?'#ea580c':'#666'))+'">'+age+'</td>'+
+        '<td style="padding:6px;border:1px solid #ddd">'+pay+'</td>'+
+      '</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;font-size:11px">'+
+      '<thead><tr style="background:#c2185b;color:#fff">'+
+        '<th style="padding:8px;border:1px solid #ddd">#</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">رقم الطلب</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">العميل</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">الهاتف</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">تاريخ الاستلام</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">الفرع</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">السعر</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">المدفوع</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">المتبقي</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">عدد الأيام</th>'+
+        '<th style="padding:8px;border:1px solid #ddd">طريقة الدفع</th>'+
+      '</tr></thead>'+
+      '<tbody>'+rows+'</tbody>'+
+    '</table>';
+  }
+
+  // 🖨️ طباعة (يفتح نافذة طباعة)
+  function printBalances(){
+    var orders = _sortForReport(_getFilteredOutstandingForExport());
+    if(!orders.length){ if(typeof showToast==='function') showToast('❌ لا يوجد بواقي للطباعة'); return; }
+    var now = new Date();
+    var dateStr = now.toISOString().substring(0,10);
+    var html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>تقرير البواقي المستحقة</title>'+
+      '<style>@page{size:landscape;margin:10mm}'+
+      'body{font-family:Arial,\'Cairo\',sans-serif;padding:12px;direction:rtl;font-size:12px}'+
+      'th{background:#c2185b;color:#fff}'+
+      '@media print{.no-print{display:none!important}}'+
+      '</style></head><body>'+
+      _reportHeaderHtml('تقرير البواقي المستحقة', dateStr, orders)+
+      _reportTableHtml(orders)+
+      '<div style="text-align:center;margin-top:14px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:8px">'+
+        'Zamzam Dessert · Designed by Mahmoud Gamal Eldeen · 01508613866'+
+      '</div>'+
+      '<br/><button class="no-print" onclick="window.print()" style="width:100%;padding:12px;background:#c2185b;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🖨️ طباعة</button>'+
+      '</body></html>';
+    var win = window.open('','_blank','width=1000,height=800');
+    if(!win){ if(typeof showToast==='function') showToast('❌ المتصفح منع فتح النافذة'); return; }
+    win.document.write(html);
+    win.document.close();
+  }
+
+  // 📄 PDF (يفتح نافذة الطباعة + توجيه لـ Save as PDF)
+  function exportBalancesPDF(){
+    var orders = _sortForReport(_getFilteredOutstandingForExport());
+    if(!orders.length){ if(typeof showToast==='function') showToast('❌ لا يوجد بواقي للتصدير'); return; }
+    var now = new Date();
+    var dateStr = now.toISOString().substring(0,10);
+    var html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>Balances_'+dateStr+'.pdf</title>'+
+      '<style>@page{size:A4 landscape;margin:8mm}'+
+      'body{font-family:Arial,\'Cairo\',sans-serif;padding:10px;direction:rtl;font-size:11px}'+
+      'th{background:#c2185b;color:#fff}'+
+      '.hint{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;text-align:center}'+
+      '@media print{.no-print{display:none!important}}'+
+      '</style></head><body>'+
+      '<div class="hint no-print">💡 نصيحة: عند الطباعة اختر "حفظ كـ PDF" من قائمة الطابعة</div>'+
+      _reportHeaderHtml('تقرير البواقي المستحقة (PDF)', dateStr, orders)+
+      _reportTableHtml(orders)+
+      '<div style="text-align:center;margin-top:14px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:8px">'+
+        'Zamzam Dessert · '+dateStr+
+      '</div>'+
+      '<br/><button class="no-print" onclick="window.print()" style="width:100%;padding:12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">📄 حفظ كـ PDF</button>'+
+      '</body></html>';
+    var win = window.open('','_blank','width=1000,height=800');
+    if(!win){ if(typeof showToast==='function') showToast('❌ المتصفح منع فتح النافذة'); return; }
+    win.document.write(html);
+    win.document.close();
+    // بعد ما تحمل، افتح الطباعة تلقائياً
+    setTimeout(function(){ try{ win.focus(); win.print(); }catch(e){} }, 800);
+  }
+
+  // 📥 Excel export (CSV UTF-8 with BOM)
+  function exportBalancesXLS(){
+    var orders = _sortForReport(_getFilteredOutstandingForExport());
+    if(!orders.length){ if(typeof showToast==='function') showToast('❌ لا يوجد بواقي للتصدير'); return; }
+    var branchMap = {factory:'المصنع', main:'الرئيسي', shobramlees:'شبراملس', delivery:'توصيل', pickup:'المصنع', other:'أخرى'};
+    var headers = ['#','رقم الطلب','اسم العميل','الهاتف','واتساب','تاريخ الاستلام','وقت الاستلام','الفرع','السعر الكلي','المدفوع','المتبقي','عدد الأيام','طريقة الدفع','الموظف المستلم','تاريخ إنشاء الطلب'];
+    var esc = function(v){ v = String(v==null?'':v); if(v.indexOf(',')>-1 || v.indexOf('"')>-1 || v.indexOf('\n')>-1) return '"'+v.replace(/"/g,'""')+'"'; return v; };
+    var rows = orders.map(function(o,i){
+      var amt = window._outstandingAmount ? window._outstandingAmount(o) : 0;
+      var age = window._outstandingAge ? window._outstandingAge(o) : 0;
+      var price = parseFloat(o.finalPrice)||0;
+      var dep = parseFloat(o.deposit)||0;
+      var idShort = (o.id||'').replace(/^cake_/,'').substring(0,10);
+      var branch = branchMap[o.orderType] || (o.otherBranch||o.orderType||'');
+      var pay = o.payMethod === 'wallet' ? ('محفظة '+(o.walletName||'')) : 'كاش';
+      return [i+1, idShort, o.clientName||'', o.clientPhone||'', o.clientWa||'',
+        o.clientDate||'', o.clientTime||'', branch, price, dep, amt, age, pay,
+        o.receivedBy||'', (o.createdAt||'').substring(0,10)].map(esc).join(',');
+    });
+    var totalAmt = orders.reduce(function(s,o){ return s + (window._outstandingAmount?window._outstandingAmount(o):0); }, 0);
+    rows.push(['','','','','','','','الإجمالي','','',totalAmt,'','','',''].map(esc).join(','));
+    var csv = '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n');
+    var blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var now = new Date();
+    var dateStr = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    a.href = url;
+    a.download = 'Balances_'+dateStr+'.csv';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    if(typeof showToast==='function') showToast('✅ تم تحميل الملف — افتحه في Excel');
+  }
+
+  // ==========================================================
+  // 🎨 حقن أزرار التسوية + التصدير في التاب (Wrapper على renderBalancesTab)
+  // ==========================================================
+  function _injectSettleAndExport(){
+    if(typeof window.renderBalancesTab !== 'function') return;
+    if(window.renderBalancesTab.__phase4Wrapped) return;
+    var orig = window.renderBalancesTab;
+    window.renderBalancesTab = function(){
+      var r = orig.apply(this, arguments);
+      // بعد الرندر، نضيف أزرار التصدير أعلى الصفحة
+      setTimeout(function(){
+        var container = document.getElementById('balancesContainer');
+        if(!container) return;
+        if(container.querySelector('#balancesExportBar')) return; // موجود بالفعل
+        // مش نظهر أزرار التصدير للمتابع (Read-Only)
+        var role = _currentRole();
+        // نضيف الأزرار في أول عنصر (قبل الـ Dashboard)
+        var bar = document.createElement('div');
+        bar.id = 'balancesExportBar';
+        bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
+        bar.innerHTML =
+          '<button onclick="printBalances()" style="flex:1;min-width:100px;padding:8px 12px;background:#b8860b;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">🖨️ طباعة</button>'+
+          '<button onclick="exportBalancesPDF()" style="flex:1;min-width:100px;padding:8px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">📄 PDF</button>'+
+          '<button onclick="exportBalancesXLS()" style="flex:1;min-width:100px;padding:8px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">📥 Excel</button>';
+        container.insertBefore(bar, container.firstChild);
+
+        // نضيف أزرار التسوية + Audit لكل بطاقة (فقط للأدمن)
+        if(role === 'admin'){
+          var cards = container.querySelectorAll('[style*="border-right:5px solid"]');
+          cards.forEach(function(card){
+            // نستخرج الـ orderId من زر التفاصيل
+            var detailBtn = card.querySelector('button[onclick*="openOrderDetail"]');
+            if(!detailBtn) return;
+            var m = detailBtn.getAttribute('onclick').match(/openOrderDetail\('([^']+)'\)/);
+            if(!m) return;
+            var orderId = m[1];
+            // نلاقي صف الأزرار
+            var btnRow = card.querySelector('div[style*="display:flex;gap:6px"]:last-child');
+            if(!btnRow) return;
+            if(btnRow.querySelector('.settle-btn')) return;
+            // نضيف زر تسوية
+            var settleBtn = document.createElement('button');
+            settleBtn.className = 'settle-btn';
+            settleBtn.style.cssText = 'flex:1;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
+            settleBtn.textContent = '💵 تسوية';
+            settleBtn.onclick = function(){ openSettleModal(orderId); };
+            btnRow.insertBefore(settleBtn, btnRow.firstChild);
+            // نضيف زر Audit Log
+            var auditBtn = document.createElement('button');
+            auditBtn.className = 'audit-btn';
+            auditBtn.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
+            auditBtn.textContent = '📜';
+            auditBtn.title = 'سجل التعديلات';
+            auditBtn.onclick = function(){ openAuditLogModal(orderId); };
+            btnRow.appendChild(auditBtn);
+          });
+        }else if(role === 'tracker'){
+          // للمتابع: نضيف بس زر Audit للعرض (بدون تسوية)
+          var cards2 = container.querySelectorAll('[style*="border-right:5px solid"]');
+          cards2.forEach(function(card){
+            var detailBtn = card.querySelector('button[onclick*="openOrderDetail"]');
+            if(!detailBtn) return;
+            var m = detailBtn.getAttribute('onclick').match(/openOrderDetail\('([^']+)'\)/);
+            if(!m) return;
+            var orderId = m[1];
+            var btnRow = card.querySelector('div[style*="display:flex;gap:6px"]:last-child');
+            if(!btnRow) return;
+            if(btnRow.querySelector('.audit-btn')) return;
+            var auditBtn = document.createElement('button');
+            auditBtn.className = 'audit-btn';
+            auditBtn.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
+            auditBtn.textContent = '📜';
+            auditBtn.title = 'سجل التعديلات';
+            auditBtn.onclick = function(){ openAuditLogModal(orderId); };
+            btnRow.appendChild(auditBtn);
+          });
+          // شارة "view-only" في الأعلى
+          if(!container.querySelector('#viewOnlyBadge')){
+            var b = document.createElement('div');
+            b.id = 'viewOnlyBadge';
+            b.style.cssText = 'background:#dbeafe;border:1.5px solid #93c5fd;color:#1e40af;border-radius:8px;padding:8px;text-align:center;font-size:12px;font-weight:800;margin-bottom:10px';
+            b.innerHTML = '👁️ وضع العرض فقط — التسوية متاحة للأدمن فقط';
+            container.insertBefore(b, container.firstChild);
+          }
+        }
+      }, 30);
+      return r;
+    };
+    window.renderBalancesTab.__phase4Wrapped = true;
+  }
+
+  // نلف كل شوية عشان نضمن الحقن حتى لو الفانكشن اتعادت تعريف
+  setInterval(_injectSettleAndExport, 3000);
+  setTimeout(_injectSettleAndExport, 300);
+
+  // ==========================================================
+  // 9️⃣ المرحلة 9: تفعيل الوصول للمتابع (Tracker Modal)
+  // ==========================================================
+  function openTrackerBalancesModal(){
+    // 🛡️ نخفي container الأدمن عن getElementById لتجنب تعارض IDs
+    var origBal = document.getElementById('balancesContainer');
+    if(origBal){
+      origBal.id = '__balancesContainer_admin_hidden';
+    }
+    var overlay = document.createElement('div');
+    overlay.id = 'trackerBalancesOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--cream,#fff5f0);z-index:9998;overflow-y:auto;padding:12px;direction:rtl;font-family:\'Cairo\',sans-serif';
+    overlay.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;position:sticky;top:0;background:var(--cream,#fff5f0);padding-bottom:8px;border-bottom:1px solid #ddd;z-index:2">'+
+        '<button onclick="closeTrackerBalancesModal()" style="background:#f5f5f5;border:1.5px solid #ddd;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;color:#666;cursor:pointer;font-family:\'Cairo\',sans-serif">← رجوع</button>'+
+        '<div style="font-size:15px;font-weight:900;color:#c2185b">💰 البواقي المستحقة (عرض فقط)</div>'+
+      '</div>'+
+      '<div id="balancesContainer" style="font-size:13px">جاري التحميل...</div>';
+    document.body.appendChild(overlay);
+    // نستخدم نفس الرندر
+    if(typeof window.renderBalancesTab === 'function'){
+      window.renderBalancesTab();
+    }
+  }
+  function closeTrackerBalancesModal(){
+    var el = document.getElementById('trackerBalancesOverlay');
+    if(el) el.remove();
+    // نرجع container الأدمن
+    var hidden = document.getElementById('__balancesContainer_admin_hidden');
+    if(hidden){ hidden.id = 'balancesContainer'; }
+  }
+
+  // زر في لوحة المتابع
+  function _injectTrackerBalancesButton(){
+    if(_currentRole() !== 'tracker') return;
+    if(document.getElementById('trackerBalancesBtn')) return;
+    // نضيف الزر جنب "إنشاء أوردر جديد"
+    var newOrderBtn = document.querySelector('button[onclick="trackerNewOrder()"]');
+    if(!newOrderBtn) return;
+
+    var btn = document.createElement('button');
+    btn.id = 'trackerBalancesBtn';
+    btn.type = 'button';
+    btn.style.cssText = 'width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;border-radius:10px;font-size:14px;font-weight:800;border:none;cursor:pointer;font-family:\'Cairo\',sans-serif;position:relative';
+    var count = 0;
+    try{ count = (typeof window._getOutstandingOrders === 'function') ? window._getOutstandingOrders().length : 0; }catch(e){}
+    btn.innerHTML = '💰 عرض البواقي المستحقة' + (count>0 ? ' <span style="background:#fff;color:#dc2626;border-radius:100px;padding:2px 8px;font-size:11px;font-weight:900;margin-right:4px">'+count+'</span>' : '');
+    btn.onclick = openTrackerBalancesModal;
+    newOrderBtn.parentNode.insertBefore(btn, newOrderBtn.nextSibling);
+  }
+
+  // تحديث الزر (لتحديث العدد)
+  function _updateTrackerBalancesButton(){
+    var btn = document.getElementById('trackerBalancesBtn');
+    if(!btn) return;
+    var count = 0;
+    try{ count = (typeof window._getOutstandingOrders === 'function') ? window._getOutstandingOrders().length : 0; }catch(e){}
+    btn.innerHTML = '💰 عرض البواقي المستحقة' + (count>0 ? ' <span style="background:#fff;color:#dc2626;border-radius:100px;padding:2px 8px;font-size:11px;font-weight:900;margin-right:4px">'+count+'</span>' : '');
+  }
+
+  setInterval(function(){
+    try{
+      _injectTrackerBalancesButton();
+      _updateTrackerBalancesButton();
+    }catch(e){}
+  }, 3000);
+  setTimeout(_injectTrackerBalancesButton, 800);
+
+  // ==========================================================
+  // 🔓 كشف الفانكشنز globally
+  // ==========================================================
+  window.openSettleModal          = openSettleModal;
+  window.closeSettleModal         = closeSettleModal;
+  window.confirmSettle            = confirmSettle;
+  window.openAuditLogModal        = openAuditLogModal;
+  window.closeAuditLogModal       = closeAuditLogModal;
+  window.printBalances            = printBalances;
+  window.exportBalancesPDF        = exportBalancesPDF;
+  window.exportBalancesXLS        = exportBalancesXLS;
+  window.openTrackerBalancesModal = openTrackerBalancesModal;
+  window.closeTrackerBalancesModal= closeTrackerBalancesModal;
+
+})();
+</script>
+</body>
 </html>

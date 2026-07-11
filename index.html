@@ -13277,99 +13277,192 @@ function stSubmit(){
   }
 
   // ==========================================================
-  // 🎨 حقن أزرار التسوية + التصدير في التاب (Wrapper على renderBalancesTab)
+  // 🎨 حقن أزرار التسوية + التصدير باستخدام MutationObserver
+  //     (بديل نظيف للـ setTimeout السابق — يتفاعل فوراً مع أي رندر جديد)
   // ==========================================================
-  function _injectSettleAndExport(){
+
+  // فتح تفاصيل الطلب حسب الدور — الأدمن يفتح adminEditorPanel، المتابع يفتح orderDetailPanel
+  function _openOrderDetailByRole(orderId){
+    var role = _currentRole();
+    if(role === 'admin' && typeof window.openAdminEditOrder === 'function'){
+      window.openAdminEditOrder(orderId);
+      return;
+    }
+    // للمتابع: لو overlay البواقي مفتوح، نقفله أولاً عشان orderDetailPanel يظهر فوق trackerScreen
+    if(role === 'tracker'){
+      var trackerOv = document.getElementById('trackerBalancesOverlay');
+      if(trackerOv && typeof window.closeTrackerBalancesModal === 'function'){
+        window.closeTrackerBalancesModal();
+      }
+    }
+    if(typeof window.openOrderDetail === 'function'){
+      window.openOrderDetail(orderId);
+    }
+  }
+
+  // حقن أزرار التسوية + التفاصيل + Audit في بطاقات البواقي
+  function _injectButtonsIntoCards(container){
+    if(!container) return;
+    var role = _currentRole();
+    // كل زر تفاصيل يحدد بطاقة
+    var detailBtns = container.querySelectorAll('button[onclick*="openOrderDetail"]');
+    detailBtns.forEach(function(detailBtn){
+      // نتقل للأب اللي فيه border-right (البطاقة)
+      var card = detailBtn.closest('div[style*="border-right"]') || detailBtn.parentElement && detailBtn.parentElement.parentElement;
+      if(!card) return;
+      if(card.getAttribute('data-phase4-done') === '1') return;
+
+      var m = detailBtn.getAttribute('onclick').match(/openOrderDetail\('([^']+)'\)/);
+      if(!m) return;
+      var orderId = m[1];
+
+      // 🔧 إصلاح 1: زر التفاصيل — نبدّل onclick بحيث ينادي الفانكشن الصحيحة حسب الدور
+      detailBtn.removeAttribute('onclick');
+      detailBtn.onclick = function(e){
+        if(e && e.stopPropagation) e.stopPropagation();
+        _openOrderDetailByRole(orderId);
+        return false;
+      };
+
+      // 🔧 إصلاح 1 (تكملة): الـ div الأعلى في البطاقة اللي عليه cursor:pointer
+      var clickableDiv = card.querySelector('div[style*="cursor:pointer"]');
+      if(clickableDiv){
+        clickableDiv.removeAttribute('onclick');
+        clickableDiv.onclick = function(e){
+          if(e && e.stopPropagation) e.stopPropagation();
+          _openOrderDetailByRole(orderId);
+          return false;
+        };
+      }
+
+      // صف الأزرار = العنصر الأب لزر التفاصيل
+      var btnRow = detailBtn.parentElement;
+      if(!btnRow) return;
+
+      if(role === 'admin'){
+        // زر التسوية (لو مش موجود)
+        if(!btnRow.querySelector('.settle-btn')){
+          var settleBtn = document.createElement('button');
+          settleBtn.type = 'button';
+          settleBtn.className = 'settle-btn';
+          settleBtn.textContent = '💵 تسوية';
+          settleBtn.style.cssText = 'flex:1;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif';
+          settleBtn.onclick = function(e){
+            if(e && e.stopPropagation) e.stopPropagation();
+            openSettleModal(orderId);
+            return false;
+          };
+          btnRow.insertBefore(settleBtn, btnRow.firstChild);
+        }
+        // زر Audit Log (لو مش موجود)
+        if(!btnRow.querySelector('.audit-btn')){
+          var auditBtn = document.createElement('button');
+          auditBtn.type = 'button';
+          auditBtn.className = 'audit-btn';
+          auditBtn.textContent = '📜';
+          auditBtn.title = 'سجل التعديلات';
+          auditBtn.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif';
+          auditBtn.onclick = function(e){
+            if(e && e.stopPropagation) e.stopPropagation();
+            openAuditLogModal(orderId);
+            return false;
+          };
+          btnRow.appendChild(auditBtn);
+        }
+      }else if(role === 'tracker'){
+        // للمتابع: زر Audit فقط (بدون تسوية)
+        if(!btnRow.querySelector('.audit-btn')){
+          var auditBtn2 = document.createElement('button');
+          auditBtn2.type = 'button';
+          auditBtn2.className = 'audit-btn';
+          auditBtn2.textContent = '📜';
+          auditBtn2.title = 'سجل التعديلات';
+          auditBtn2.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif';
+          auditBtn2.onclick = function(e){
+            if(e && e.stopPropagation) e.stopPropagation();
+            openAuditLogModal(orderId);
+            return false;
+          };
+          btnRow.appendChild(auditBtn2);
+        }
+      }
+
+      // علامة "تم الحقن" — تمنع الحقن المتكرر
+      card.setAttribute('data-phase4-done', '1');
+    });
+  }
+
+  // حقن شريط التصدير في أعلى الصفحة (طباعة / PDF / Excel)
+  function _injectExportBar(container){
+    if(!container) return;
+    if(container.querySelector('#balancesExportBar')) return;
+    // نلاقي الـ Dashboard grid (أول عنصر) — نحط الشريط قبله
+    var bar = document.createElement('div');
+    bar.id = 'balancesExportBar';
+    bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
+    bar.innerHTML =
+      '<button type="button" onclick="printBalances()" style="flex:1;min-width:100px;padding:8px 12px;background:#b8860b;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif">🖨️ طباعة</button>'+
+      '<button type="button" onclick="exportBalancesPDF()" style="flex:1;min-width:100px;padding:8px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif">📄 PDF</button>'+
+      '<button type="button" onclick="exportBalancesXLS()" style="flex:1;min-width:100px;padding:8px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif">📥 Excel</button>';
+    if(container.firstChild){
+      container.insertBefore(bar, container.firstChild);
+    }else{
+      container.appendChild(bar);
+    }
+    // شارة "view-only" للمتابع
+    if(_currentRole() === 'tracker' && !container.querySelector('#viewOnlyBadge')){
+      var b = document.createElement('div');
+      b.id = 'viewOnlyBadge';
+      b.style.cssText = 'background:#dbeafe;border:1.5px solid #93c5fd;color:#1e40af;border-radius:8px;padding:8px;text-align:center;font-size:12px;font-weight:800;margin-bottom:10px';
+      b.innerHTML = '👁️ وضع العرض فقط — التسوية متاحة للأدمن فقط';
+      container.insertBefore(b, container.firstChild);
+    }
+  }
+
+  // إعداد MutationObserver على كل container ظاهر
+  function _setupBalancesMO(){
+    // نلاقي أي balancesContainer نشط (في الأدمن أو المتابع)
+    var containers = [];
+    var byId = document.getElementById('balancesContainer');
+    if(byId) containers.push(byId);
+    // كمان الـ container اللي أنا خبيته أثناء overlay المتابع
+    var hidden = document.getElementById('__balancesContainer_admin_hidden');
+    if(hidden) containers.push(hidden);
+
+    containers.forEach(function(container){
+      if(container.__phase4MO) return;
+      var mo = new MutationObserver(function(){
+        // كل ما يتغير childList داخل الـ container → حقن فوري
+        _injectButtonsIntoCards(container);
+        _injectExportBar(container);
+      });
+      mo.observe(container, { childList: true, subtree: true });
+      container.__phase4MO = mo;
+      // حقن أولي فوراً
+      _injectButtonsIntoCards(container);
+      _injectExportBar(container);
+    });
+  }
+
+  // كل 2 ثانية نتأكد إن الـ MO مركّب — عشان لو container جديد ظهر (زي overlay المتابع)
+  setInterval(_setupBalancesMO, 2000);
+  setTimeout(_setupBalancesMO, 300);
+
+  // كمان: hook خفيف على renderBalancesTab يشغّل الحقن فوراً بعد أي رندر
+  function _lightWrapRender(){
     if(typeof window.renderBalancesTab !== 'function') return;
-    if(window.renderBalancesTab.__phase4Wrapped) return;
+    if(window.renderBalancesTab.__phase4LightWrapped) return;
     var orig = window.renderBalancesTab;
     window.renderBalancesTab = function(){
       var r = orig.apply(this, arguments);
-      // بعد الرندر، نضيف أزرار التصدير أعلى الصفحة
-      setTimeout(function(){
-        var container = document.getElementById('balancesContainer');
-        if(!container) return;
-        if(container.querySelector('#balancesExportBar')) return; // موجود بالفعل
-        // مش نظهر أزرار التصدير للمتابع (Read-Only)
-        var role = _currentRole();
-        // نضيف الأزرار في أول عنصر (قبل الـ Dashboard)
-        var bar = document.createElement('div');
-        bar.id = 'balancesExportBar';
-        bar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
-        bar.innerHTML =
-          '<button onclick="printBalances()" style="flex:1;min-width:100px;padding:8px 12px;background:#b8860b;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">🖨️ طباعة</button>'+
-          '<button onclick="exportBalancesPDF()" style="flex:1;min-width:100px;padding:8px 12px;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">📄 PDF</button>'+
-          '<button onclick="exportBalancesXLS()" style="flex:1;min-width:100px;padding:8px 12px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif">📥 Excel</button>';
-        container.insertBefore(bar, container.firstChild);
-
-        // نضيف أزرار التسوية + Audit لكل بطاقة (فقط للأدمن)
-        if(role === 'admin'){
-          var cards = container.querySelectorAll('[style*="border-right:5px solid"]');
-          cards.forEach(function(card){
-            // نستخرج الـ orderId من زر التفاصيل
-            var detailBtn = card.querySelector('button[onclick*="openOrderDetail"]');
-            if(!detailBtn) return;
-            var m = detailBtn.getAttribute('onclick').match(/openOrderDetail\('([^']+)'\)/);
-            if(!m) return;
-            var orderId = m[1];
-            // نلاقي صف الأزرار
-            var btnRow = card.querySelector('div[style*="display:flex;gap:6px"]:last-child');
-            if(!btnRow) return;
-            if(btnRow.querySelector('.settle-btn')) return;
-            // نضيف زر تسوية
-            var settleBtn = document.createElement('button');
-            settleBtn.className = 'settle-btn';
-            settleBtn.style.cssText = 'flex:1;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
-            settleBtn.textContent = '💵 تسوية';
-            settleBtn.onclick = function(){ openSettleModal(orderId); };
-            btnRow.insertBefore(settleBtn, btnRow.firstChild);
-            // نضيف زر Audit Log
-            var auditBtn = document.createElement('button');
-            auditBtn.className = 'audit-btn';
-            auditBtn.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
-            auditBtn.textContent = '📜';
-            auditBtn.title = 'سجل التعديلات';
-            auditBtn.onclick = function(){ openAuditLogModal(orderId); };
-            btnRow.appendChild(auditBtn);
-          });
-        }else if(role === 'tracker'){
-          // للمتابع: نضيف بس زر Audit للعرض (بدون تسوية)
-          var cards2 = container.querySelectorAll('[style*="border-right:5px solid"]');
-          cards2.forEach(function(card){
-            var detailBtn = card.querySelector('button[onclick*="openOrderDetail"]');
-            if(!detailBtn) return;
-            var m = detailBtn.getAttribute('onclick').match(/openOrderDetail\('([^']+)'\)/);
-            if(!m) return;
-            var orderId = m[1];
-            var btnRow = card.querySelector('div[style*="display:flex;gap:6px"]:last-child');
-            if(!btnRow) return;
-            if(btnRow.querySelector('.audit-btn')) return;
-            var auditBtn = document.createElement('button');
-            auditBtn.className = 'audit-btn';
-            auditBtn.style.cssText = 'padding:8px 10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:\'Cairo\',sans-serif';
-            auditBtn.textContent = '📜';
-            auditBtn.title = 'سجل التعديلات';
-            auditBtn.onclick = function(){ openAuditLogModal(orderId); };
-            btnRow.appendChild(auditBtn);
-          });
-          // شارة "view-only" في الأعلى
-          if(!container.querySelector('#viewOnlyBadge')){
-            var b = document.createElement('div');
-            b.id = 'viewOnlyBadge';
-            b.style.cssText = 'background:#dbeafe;border:1.5px solid #93c5fd;color:#1e40af;border-radius:8px;padding:8px;text-align:center;font-size:12px;font-weight:800;margin-bottom:10px';
-            b.innerHTML = '👁️ وضع العرض فقط — التسوية متاحة للأدمن فقط';
-            container.insertBefore(b, container.firstChild);
-          }
-        }
-      }, 30);
+      // حقن فوري (بدون setTimeout) — الـ MO يتكفل بالباقي كمان
+      try{ _setupBalancesMO(); }catch(e){}
       return r;
     };
-    window.renderBalancesTab.__phase4Wrapped = true;
+    window.renderBalancesTab.__phase4LightWrapped = true;
   }
-
-  // نلف كل شوية عشان نضمن الحقن حتى لو الفانكشن اتعادت تعريف
-  setInterval(_injectSettleAndExport, 3000);
-  setTimeout(_injectSettleAndExport, 300);
+  setInterval(_lightWrapRender, 3000);
+  setTimeout(_lightWrapRender, 400);
 
   // ==========================================================
   // 9️⃣ المرحلة 9: تفعيل الوصول للمتابع (Tracker Modal)

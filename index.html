@@ -25,6 +25,47 @@
   gtag('config', 'G-67V4E37QM0');
 </script>
 <!-- Firebase SDK — نفس قاعدة زمزم -->
+<!-- 🧹 تنظيف localStorage قبل تحميل Firebase (QuotaExceeded fix) -->
+<script>
+(function(){
+  try{
+    var totalKB = 0;
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i), v=localStorage.getItem(k)||'';
+      totalKB += (k.length+v.length)*2/1024;
+    }
+    // لو الحجم أكبر من 3.5MB — تنظيف عدواني
+    if(totalKB > 3500){
+      console.warn('🧹 localStorage=' + (totalKB/1024).toFixed(2) + 'MB — cleaning before Firebase...');
+      // أكبر مسبب: الباكبات الكاملة
+      localStorage.removeItem('zz_cake_backups');
+      // أوردرات قديمة — نقصها لـ 80
+      try{
+        var raw=localStorage.getItem('zz_cake_orders');
+        if(raw && raw.length>400000){
+          var arr=JSON.parse(raw);
+          if(Array.isArray(arr)&&arr.length>80){
+            arr.sort(function(a,b){return(b.createdAt||'').localeCompare(a.createdAt||'');});
+            localStorage.setItem('zz_cake_orders',JSON.stringify(arr.slice(0,80)));
+          }
+        }
+      }catch(e){}
+      // Audit log محلي
+      localStorage.removeItem('zz_balance_audit_local');
+      // Ratings لو ضخمة
+      try{
+        var rat=localStorage.getItem('zz_cake_ratings');
+        if(rat&&rat.length>200000) localStorage.removeItem('zz_cake_ratings');
+      }catch(e){}
+    }
+    // حتى لو الحجم صغير — لو zz_cake_backups فيها أوردرات كاملة (قديمة) نمسحها
+    try{
+      var bk=localStorage.getItem('zz_cake_backups');
+      if(bk&&bk.length>50000) localStorage.removeItem('zz_cake_backups');
+    }catch(e){}
+  }catch(e){ console.error('cleanup err:',e); }
+})();
+</script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -13561,91 +13602,6 @@ function stSubmit(){
   window.openTrackerBalancesModal = openTrackerBalancesModal;
   window.closeTrackerBalancesModal= closeTrackerBalancesModal;
 
-})();
-</script>
-
-<!-- ============================================================
-     🧹 تنظيف localStorage عند بداية التشغيل (QuotaExceeded fix)
-     ============================================================ -->
-<script>
-(function(){
-  'use strict';
-  try{
-    // 1) نشوف حجم كل key
-    var report = [];
-    var totalBytes = 0;
-    for(var i=0; i<localStorage.length; i++){
-      var key = localStorage.key(i);
-      var val = localStorage.getItem(key) || '';
-      var bytes = (key.length + val.length) * 2; // UTF-16
-      totalBytes += bytes;
-      report.push({ key:key, bytes:bytes });
-    }
-    report.sort(function(a,b){ return b.bytes - a.bytes; });
-    console.log('📊 localStorage usage: ' + (totalBytes/1024/1024).toFixed(2) + 'MB / ~5MB');
-    report.slice(0,5).forEach(function(r){
-      console.log('   ' + r.key + ': ' + (r.bytes/1024).toFixed(1) + 'KB');
-    });
-
-    // 2) لو zz_cake_backups ضخم (أكثر من 500KB) — نمسحه (الباكبات في Firebase آمنة)
-    var backupsRaw = localStorage.getItem('zz_cake_backups');
-    if(backupsRaw && backupsRaw.length > 250000){ // ~500KB
-      console.warn('🧹 Clearing oversized zz_cake_backups (' + (backupsRaw.length*2/1024).toFixed(0) + 'KB)');
-      localStorage.removeItem('zz_cake_backups');
-    }
-
-    // 3) لو zz_cake_orders أكبر من 200 أوردر — نقصها لـ 100 (القديم موجود في Firebase)
-    var ordersRaw = localStorage.getItem('zz_cake_orders');
-    if(ordersRaw && ordersRaw.length > 500000){ // > ~1MB
-      try{
-        var orders = JSON.parse(ordersRaw);
-        if(Array.isArray(orders) && orders.length > 100){
-          // نخلي آخر 100 أوردر بس
-          orders.sort(function(a,b){ return (b.createdAt||'').localeCompare(a.createdAt||''); });
-          var trimmed = orders.slice(0, 100);
-          localStorage.setItem('zz_cake_orders', JSON.stringify(trimmed));
-          console.warn('🧹 Trimmed zz_cake_orders from ' + orders.length + ' to 100');
-        }
-      }catch(e){}
-    }
-
-    // 4) مسح أي keys قديمة مش مستخدمة
-    var obsoleteKeys = [];
-    for(var j=0; j<localStorage.length; j++){
-      var k = localStorage.key(j);
-      // مفاتيح مؤقتة أو قديمة
-      if(k && (k.indexOf('zz_cake_backup_') === 0 || k.indexOf('zz_cake_temp') === 0)){
-        obsoleteKeys.push(k);
-      }
-    }
-    obsoleteKeys.forEach(function(k){
-      console.warn('🧹 Removing obsolete key: ' + k);
-      localStorage.removeItem(k);
-    });
-
-    // 5) لو zz_balance_audit_local أكبر من 200 — نقصها
-    var auditRaw = localStorage.getItem('zz_balance_audit_local');
-    if(auditRaw){
-      try{
-        var audit = JSON.parse(auditRaw);
-        if(Array.isArray(audit) && audit.length > 200){
-          localStorage.setItem('zz_balance_audit_local', JSON.stringify(audit.slice(-200)));
-          console.warn('🧹 Trimmed audit log to 200 entries');
-        }
-      }catch(e){}
-    }
-
-    // 6) تقرير بعد التنظيف
-    var afterBytes = 0;
-    for(var m=0; m<localStorage.length; m++){
-      var kk = localStorage.key(m);
-      afterBytes += ((kk||'').length + (localStorage.getItem(kk)||'').length) * 2;
-    }
-    console.log('✅ After cleanup: ' + (afterBytes/1024/1024).toFixed(2) + 'MB');
-
-  }catch(e){
-    console.error('localStorage cleanup error:', e);
-  }
 })();
 </script>
 </body>

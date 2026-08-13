@@ -5151,10 +5151,16 @@ function collectAdminOrder(){
   if ((base.deliveryFee||0) > 0) base.finalPrice = (base.finalPrice || 0) + base.deliveryFee;
   base.deposit       = aeNum('ae_deposit');
   base.payMethod     = aeVal('ae_payMethod') || 'cash';
-  base.walletName    = aeVal('ae_walletName');
-  base.walletNum     = aeVal('ae_walletNum');
-  base.walletMgr     = aeVal('ae_walletMgr');
-  base.walletAmount  = aeNum('ae_walletAmount');
+  // ✅ FIX: قراءة بيانات المحفظة من الـ dropdown (المحافظ المسجّلة) مش من input نص حر
+  if(base.payMethod==='wallet'){
+    var wsel=document.getElementById('ae_wallet'); var _wIdx=wsel?parseInt(wsel.value,10):NaN;
+    var _ws=(typeof aeGetWallets==='function') ? aeGetWallets() : JSON.parse(localStorage.getItem('zz_cake_wallets')||'[]');
+    if(!isNaN(_wIdx) && _ws[_wIdx]){ base.walletName=_ws[_wIdx].name; base.walletNum=_ws[_wIdx].num; base.walletMgr=_ws[_wIdx].mgr; }
+    else { base.walletName=aeVal('ae_walletName'); base.walletNum=aeVal('ae_walletNum'); base.walletMgr=aeVal('ae_walletMgr'); }
+    base.walletAmount=aeNum('ae_walletAmount');
+  } else {
+    base.walletName=''; base.walletNum=''; base.walletMgr=''; base.walletAmount=0;
+  }
   base.adminNote     = aeVal('ae_adminNote');
 
   if (adminEditorMode==='create') {

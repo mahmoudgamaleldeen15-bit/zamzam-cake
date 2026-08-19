@@ -5126,12 +5126,43 @@ function openAdminEditOrder(orderId){
     document.getElementById('adminEditorPanel').style.display = 'block';
     window.scrollTo(0,0);
   }
-  if (o) { go(o); return; }
+  // ✅ دايماً نجيب من Firebase عشان نحصل على الصور (orderImages)
   if (cakeDb) {
     cakeDb.ref('cake_orders/'+orderId).once('value').then(function(snap){
-      if (snap.exists()) go(snap.val()); else showToast('❌ الأوردر غير موجود');
-    }).catch(function(){ showToast('❌ تعذّر تحميل الأوردر'); });
-  } else { showToast('❌ الأوردر غير موجود'); }
+      if (snap.exists()) {
+        var fbOrder = snap.val();
+        // ✅ استعادة الصور من orderImages لو imgBase64 مش موجودة
+        if(!fbOrder.imgBase64 && fbOrder.orderImages){
+          var imgs = fbOrder.orderImages;
+          if(Array.isArray(imgs)){
+            imgs.forEach(function(img){
+              if(!img) return;
+              if(img.label && img.label.indexOf('مرجعية') > -1 && !fbOrder.imgBase64) fbOrder.imgBase64 = img.data;
+              if(img.label && img.label.indexOf('تحويل') > -1 && !fbOrder.paymentProof) fbOrder.paymentProof = img.data;
+            });
+          } else if(typeof imgs === 'object'){
+            Object.keys(imgs).forEach(function(k){
+              var img = imgs[k]; if(!img) return;
+              if(img.label && img.label.indexOf('مرجعية') > -1 && !fbOrder.imgBase64) fbOrder.imgBase64 = img.data;
+              if(img.label && img.label.indexOf('تحويل') > -1 && !fbOrder.paymentProof) fbOrder.paymentProof = img.data;
+            });
+          }
+        }
+        go(fbOrder);
+      } else if (o) {
+        go(o); // fallback للـ localStorage
+      } else {
+        showToast('❌ الأوردر غير موجود');
+      }
+    }).catch(function(){
+      // لو Firebase فشل — نستخدم localStorage
+      if (o) { go(o); } else { showToast('❌ تعذّر تحميل الأوردر'); }
+    });
+  } else if (o) {
+    go(o);
+  } else {
+    showToast('❌ الأوردر غير موجود');
+  }
 }
 
 function closeAdminEditor(){
@@ -10204,7 +10235,7 @@ function _safeSaveOrders(arr){
   try{ localStorage.setItem('zz_cake_orders', JSON.stringify(arr)); return true; }
   catch(e){
     try{
-      var light=arr.map(function(x){ var c=Object.assign({},x); delete c.imgBase64; delete c.paymentProof; return c; });
+      var light=arr.map(function(x){ var c=Object.assign({},x); delete c.imgBase64; delete c.paymentProof; delete c.orderImages; return c; });
       localStorage.setItem('zz_cake_orders', JSON.stringify(light));
     }catch(e2){
       try{ localStorage.setItem('zz_cake_orders', JSON.stringify(arr.slice(0,60).map(function(x){var c=Object.assign({},x);delete c.imgBase64;delete c.paymentProof;return c;}))); }catch(e3){}
@@ -10252,7 +10283,7 @@ function _rtFlush(){
       if(key==='zz_cake_orders'){
         try{
           var arr=JSON.parse(val);
-          var light=arr.map(function(x){ var c=Object.assign({},x); delete c.imgBase64; delete c.paymentProof; return c; });
+          var light=arr.map(function(x){ var c=Object.assign({},x); delete c.imgBase64; delete c.paymentProof; delete c.orderImages; return c; });
           return _orig(key, JSON.stringify(light));
         }catch(e2){
           try{ return _orig(key, JSON.stringify(JSON.parse(val).slice(0,50).map(function(x){var c=Object.assign({},x);delete c.imgBase64;delete c.paymentProof;return c;}))); }catch(e3){}
@@ -13682,12 +13713,14 @@ function stSubmit(){
   }
 
   // ==========================================================
-  // 💾 حفظ الصور في Firebase: cake_images/{orderId}
+  // 💾 حفظ الصور في Firebase: داخل cake_orders/{orderId}/orderImages
+  //    (نفس المسار اللي ليه صلاحيات — بدون الحاجة لتعديل Firebase rules)
   // ==========================================================
   function saveOrderImages(orderId, imgArray){
     if(!orderId || !imgArray || !imgArray.length) return Promise.resolve();
     if(typeof cakeDb === 'undefined' || !cakeDb) return Promise.resolve();
-    return cakeDb.ref('cake_images/' + orderId).set(imgArray).catch(function(err){
+    // نستخدم update() مش set() عشان ما نمسحش باقي بيانات الطلب
+    return cakeDb.ref('cake_orders/' + orderId).update({ orderImages: imgArray }).catch(function(err){
       console.error('Failed to save images:', err);
     });
   }
@@ -13745,7 +13778,7 @@ function stSubmit(){
   //    هنعمل wrap على saveAdminOrder + submitOrder + saveOrderPricing
   // ==========================================================
 
-  /** حفظ صور الطلب في Firebase (cake_images/) — ضغط + رفع */
+  /** حفظ صور الطلب في Firebase — ضغط + رفع */
   function _saveImagesForOrder(orderId, imgBase64, paymentProof, tiers){
     if(!orderId) return;
     var imgs = [];
@@ -13761,15 +13794,16 @@ function stSubmit(){
     if(tiers && Array.isArray(tiers)){
       var tierNames = ['الأول','الثاني','الثالث','الرابع','الخامس'];
       tiers.forEach(function(t, i){
-        if(t.refImg) imgs.push({ data: t.refImg, label: '🎂 صورة الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
-        if(t.perImgs && Array.isArray(t.perImgs)){
+        if(t && t.refImg) imgs.push({ data: t.refImg, label: '🎂 صورة الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
+        if(t && t.perImgs && Array.isArray(t.perImgs)){
           t.perImgs.forEach(function(pImg, j){
-            imgs.push({ data: pImg, label: '🎂 صورة '+(j+1)+' — الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
+            if(pImg) imgs.push({ data: pImg, label: '🎂 صورة '+(j+1)+' — الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
           });
         }
       });
     }
-    if(!imgs.length) return;
+    if(!imgs.length){ console.log('📸 No images to save for '+orderId); return; }
+    console.log('📸 Compressing '+imgs.length+' images for '+orderId+'...');
 
     // ضغط كل صورة أكبر من 300KB
     var compressionPromises = imgs.map(function(img){
@@ -13785,60 +13819,50 @@ function stSubmit(){
     }).catch(function(err){ console.error('Image save error:', err); });
   }
 
-  // ✅ Wrap saveAdminOrder — يمسك الصور من _aeImg و paymentProof قبل ما تضيع
+  // ✅ Wrap saveAdminOrder — يمسك كل الصور من كل المصادر الممكنة
   function _wrapSaveAdminOrder(){
     if(typeof window.saveAdminOrder !== 'function') return;
     if(window.saveAdminOrder.__imgSaveWrapped) return;
     var orig = window.saveAdminOrder;
     window.saveAdminOrder = function(action){
-      // نمسك الصور قبل ما saveAdminOrder يعمل collectAdminOrder ويحفظ
       var imgData = null;
       var proofData = null;
       var tiersData = null;
 
-      // 1) الصورة المرجعية من _aeImg (المتغير العام بتاع الإديتور)
-      try{
-        if(typeof _aeImg !== 'undefined' && _aeImg) imgData = _aeImg;
-      }catch(e){}
-      // 2) لو مفيش _aeImg، نشوف adminEditorBase
+      // 1) الصورة المرجعية — من _aeImg (إديتور الأدمن)
+      try{ if(typeof _aeImg !== 'undefined' && _aeImg) imgData = _aeImg; }catch(e){}
+      // fallback: من adminEditorBase
       if(!imgData){
-        try{
-          if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.imgBase64){
-            imgData = adminEditorBase.imgBase64;
-          }
-        }catch(e){}
+        try{ if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.imgBase64) imgData = adminEditorBase.imgBase64; }catch(e){}
       }
-      // 3) إثبات التحويل
-      try{
-        if(typeof _payProofImg !== 'undefined' && _payProofImg) proofData = _payProofImg;
-      }catch(e){}
-      if(!proofData){
-        try{
-          if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.paymentProof){
-            proofData = adminEditorBase.paymentProof;
-          }
-        }catch(e){}
-      }
-      // 4) صور الأدوار
-      try{
-        if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.tiers){
-          tiersData = adminEditorBase.tiers;
-        }
-      }catch(e){}
 
-      // نشغل الأصلية
+      // 2) إثبات التحويل — من _payProofImg أو _aePayProof
+      try{ if(typeof _payProofImg !== 'undefined' && _payProofImg) proofData = _payProofImg; }catch(e){}
+      if(!proofData){
+        try{ if(typeof _aePayProof !== 'undefined' && _aePayProof) proofData = _aePayProof; }catch(e){}
+      }
+      // fallback: من adminEditorBase
+      if(!proofData){
+        try{ if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.paymentProof) proofData = adminEditorBase.paymentProof; }catch(e){}
+      }
+
+      // 3) صور الأدوار
+      try{ if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.tiers) tiersData = adminEditorBase.tiers; }catch(e){}
+
+      console.log('📸 saveAdminOrder: img='+(imgData?'YES':'NO')+', proof='+(proofData?'YES':'NO')+', tiers='+(tiersData?tiersData.length:0));
+
+      // نشغل الأصلية (تحفظ الطلب)
       var result = orig.apply(this, arguments);
 
-      // بعد الحفظ — نحدد الـ orderId (اللي اتحفظ للتو)
+      // بعد الحفظ — نحفظ الصور
       if(imgData || proofData || tiersData){
         try{
-          // نلاقي آخر أوردر اتحفظ
           var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-          var lastOrder = orders[0]; // أحدث واحد
+          var lastOrder = orders[0];
           if(lastOrder && lastOrder.id){
             _saveImagesForOrder(lastOrder.id, imgData, proofData, tiersData);
           }
-        }catch(e){}
+        }catch(e){ console.error('Image save after order error:', e); }
       }
       return result;
     };

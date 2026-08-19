@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="تورتة زمزم">
-<meta name="description" content="اطلب تورتتك المخصصة من زمزم ديزيرت">
+<meta name="description" content="اطلب تورتتك المخصصة من زمزم ديزرت">
 <link rel="manifest" href="cake-manifest.json">
 <link rel="apple-touch-icon" href="https://res.cloudinary.com/dk3xw0x5v/image/upload/v1780257018/ChatGPT-Image-May-31_-2026_-04_35_35-PM_hiarbj.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -729,7 +729,7 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
 <div class="success-screen" id="successScreen">
   <div class="success-icon">🎉</div>
   <div style="font-size:22px;font-weight:900;color:var(--dark);margin:16px 0 8px">تم إرسال طلبك!</div>
-  <div style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:16px">شكراً لثقتك في زمزم ديزيرت 🎂<br/>سيتواصل معك فريقنا على واتساب قريباً لتأكيد طلبك</div>
+  <div style="font-size:14px;color:var(--text2);line-height:1.8;margin-bottom:16px">شكراً لثقتك في زمزم ديزرت 🎂<br/>سيتواصل معك فريقنا على واتساب قريباً لتأكيد طلبك</div>
 
   <!-- IMAGE SEND SECTION -->
   <div id="imgSendSection" style="display:none;background:#fff8f0;border:1.5px solid var(--rose-light);border-radius:14px;padding:14px;margin-bottom:16px;text-align:center">
@@ -1486,7 +1486,7 @@ function changePersons(delta) {
 function handleImgUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 5*1024*1024) { showToast('❌ الصورة أكبر من 5MB'); return; }
+  if (file.size > 10*1024*1024) { showToast('❌ الصورة أكبر من 10MB'); return; }
   const reader = new FileReader();
   reader.onload = e => {
     order.imgBase64 = e.target.result;
@@ -1640,7 +1640,7 @@ function submitOrder() {
   const dedicationText = document.getElementById('dedicationText')?.value?.trim() || '';
   const layerHeight = document.querySelector('#layerHeightGrid .option-btn.selected')?.textContent?.trim() || '3 طبقات';
 
-  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزيرت*\n';
+  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزرت*\n';
   msg += '━━━━━━━━━━━━━━━━\n';
   msg += '👤 الاسم: ' + order.clientName + '\n';
   msg += '📱 الهاتف: ' + order.clientPhone + '\n';
@@ -1699,7 +1699,17 @@ function submitOrder() {
     msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  if (order.imgBase64) msg += '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)\n';
+  if (order.imgBase64) {
+    var _resumeUrl = (typeof getResumeUrl === 'function' && (typeof orderData !== 'undefined' ? orderData.id : order.id))
+      ? getResumeUrl(typeof orderData !== 'undefined' ? orderData.id : order.id) : '';
+    if(_resumeUrl){
+      msg += '📸 *صورة التصميم المرجعية:*\n';
+      msg += '👇 اضغط لعرض وتحميل الصورة:\n';
+      msg += _resumeUrl + '\n';
+    } else {
+      msg += '🖼️ (صورة مرجعية مرفقة)\n';
+    }
+  }
   msg += '#' + orderData.id;
 
   const waNum = WA_NUM().replace(/[^0-9]/g,'');
@@ -1889,7 +1899,7 @@ function renderAdminOrders(orders) {
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
         (function(){
           var st=_getOrderStatus(o);
-          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['#fef9c3','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
           return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
         })() +
       '</div>' +
@@ -2059,7 +2069,7 @@ function doAdminPrint(o) {
     '.pending{background:#fff8e1;border:1.5px solid #fde047;border-radius:8px;padding:8px;margin-bottom:10px;font-size:13px;color:#92400e;font-weight:700;text-align:center}'+
     '@media print{button{display:none!important}}'+
     '</style></head><body>'+
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">أوردر تورتة سبيشيال — '+o.id+'</div>'+
 
     (o.receivedBy
@@ -2885,7 +2895,7 @@ function changePersons(delta) {
 function handleImgUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 5*1024*1024) { showToast('❌ الصورة أكبر من 5MB'); return; }
+  if (file.size > 10*1024*1024) { showToast('❌ الصورة أكبر من 10MB'); return; }
   const reader = new FileReader();
   reader.onload = e => {
     order.imgBase64 = e.target.result;
@@ -3069,7 +3079,7 @@ function submitOrder() {
   const dedicationText = document.getElementById('dedicationText')?.value?.trim() || '';
   const layerHeight = document.querySelector('#layerHeightGrid .option-btn.selected')?.textContent?.trim() || '3 طبقات';
 
-  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزيرت*\n';
+  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزرت*\n';
   msg += '━━━━━━━━━━━━━━━━\n';
   msg += '👤 الاسم: ' + order.clientName + '\n';
   msg += '📱 الهاتف: ' + order.clientPhone + '\n';
@@ -3128,7 +3138,17 @@ function submitOrder() {
     msg += '⚠️ السعر النهائي يتحدد بعد المراجعة\n';
   }
   msg += '━━━━━━━━━━━━━━━━\n';
-  if (order.imgBase64) msg += '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)\n';
+  if (order.imgBase64) {
+    var _resumeUrl = (typeof getResumeUrl === 'function' && (typeof orderData !== 'undefined' ? orderData.id : order.id))
+      ? getResumeUrl(typeof orderData !== 'undefined' ? orderData.id : order.id) : '';
+    if(_resumeUrl){
+      msg += '📸 *صورة التصميم المرجعية:*\n';
+      msg += '👇 اضغط لعرض وتحميل الصورة:\n';
+      msg += _resumeUrl + '\n';
+    } else {
+      msg += '🖼️ (صورة مرجعية مرفقة)\n';
+    }
+  }
   msg += '#' + orderData.id;
 
   const waNum = WA_NUM().replace(/[^0-9]/g,'');
@@ -3305,7 +3325,7 @@ function renderAdminOrders(orders) {
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
         (function(){
           var st=_getOrderStatus(o);
-          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['#fef9c3','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
           return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
         })() +
       '</div>' +
@@ -3476,7 +3496,7 @@ function doAdminPrint(o) {
     '.pending{background:#fff8e1;border:1.5px solid #fde047;border-radius:8px;padding:8px;margin-bottom:10px;font-size:13px;color:#92400e;font-weight:700;text-align:center}'+
     '@media print{button{display:none!important}}'+
     '</style></head><body>'+
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">أوردر تورتة سبيشيال — '+o.id+'</div>'+
 
     (o.receivedBy
@@ -4174,7 +4194,7 @@ function doPrintOrder(o) {
     '.key{color:#666;font-weight:600}.val{font-weight:700;text-align:left}' +
     '.footer{text-align:center;margin-top:20px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:10px}' +
     '@media print{button{display:none}}</style></head><body>' +
-    '<h2>🎂 زمزم ديزيرت</h2>' +
+    '<h2>🎂 زمزم ديزرت</h2>' +
     '<div class="sub">أوردر تورتة سبيشيال — ' + (o.id || '') + '</div>' +
     receivedLine +
     '<div class="row"><span class="key">الاسم</span><span class="val">' + (o.clientName || '-') + '</span></div>' +
@@ -4529,7 +4549,7 @@ function printTodayOrders() {
     '.sum-num{font-size:20px;font-weight:900;color:#c8973a}'+
     '@media print{button{display:none!important}}'+
     '</style></head><body>'+
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">طلبات '+dayName+' — '+today+' | طُبع بواسطة: '+trackerName+'</div>'+
     '<div class="summary">'+
       '<div class="sum-item"><div class="sum-num">'+todayOrders.length+'</div><div>إجمالي الطلبات</div></div>'+
@@ -4781,7 +4801,7 @@ function doAdminPrint(o) {
     '@media print{button{display:none!important} body{padding:6px}}'+
     '</style></head><body>'+
 
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">طلب تورتة سبيشيال — '+(o.id||'')+'</div>'+
 
     (o.receivedBy
@@ -4903,7 +4923,7 @@ function renderAdminOrders(orders) {
     if(o.createdByRole==='branch') srcBadge = '<span style="font-size:9px;background:#ede9fe;color:#6d28d9;border-radius:6px;padding:2px 6px;margin-right:4px">🏬 فرع</span>';
     else if(o.createdByRole==='shift') srcBadge = '<span style="font-size:9px;background:#ccfbf1;color:#0f766e;border-radius:6px;padding:2px 6px;margin-right:4px">🌙 مسائي</span>';
     else if(o.createdByRole==='tracker') srcBadge = '<span style="font-size:9px;background:#fef3c7;color:#b45309;border-radius:6px;padding:2px 6px;margin-right:4px">📋 متابع</span>';
-    else if(o.createdByRole==='admin') srcBadge = '<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 6px;margin-right:4px">👑 مدير المبيعات</span>';
+    else if(o.createdByRole==='admin') srcBadge = '<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:6px;padding:2px 6px;margin-right:4px">👑 مدير الحجز العام</span>';
 
     return '<div id="ocard_'+o.id+'" style="border:1.5px solid '+(isReceived?'#86efac':'var(--border)')+';border-radius:14px;padding:14px;margin-bottom:12px;background:'+(isReceived?'#f0fff4':'#fff')+'">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
@@ -4911,7 +4931,7 @@ function renderAdminOrders(orders) {
         '<div style="font-size:10px;color:var(--text2)">'+o.id+'</div></div>' +
         (function(){
           var st=_getOrderStatus(o);
-          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['‪#fef9c3‬','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
+          var cfg={'received':['#dcfce7','#16a34a','✅ اتسلمت'],'sent':['#dbeafe','#1d4ed8','📤 أُرسل للمتابع'],'new':['#fef9c3','#a16207','🆕 جديد']}[st]||['#f3f4f6','#555','—'];
           return '<span style="padding:4px 10px;border-radius:100px;font-size:11px;font-weight:800;background:'+cfg[0]+';color:'+cfg[1]+'">' + cfg[2] + '</span>';
         })() +
       '</div>' +
@@ -5222,7 +5242,7 @@ function buildClientConfirmMsg(o){
   var timeLine = (typeof to12Hour==='function' ? to12Hour(o.clientTime||'') : (o.clientTime||''));
   var remaining = (o.finalPrice&&o.finalPrice>0) ? Math.max(0,o.finalPrice-(o.deposit||0)) : 0;
 
-  var m = '🎂 *تأكيد طلب تورتة — زمزم ديزيرت*\n';
+  var m = '🎂 *تأكيد طلب تورتة — زمزم ديزرت*\n';
   m += 'أهلاً ' + (o.clientName||'') + ' 👋\n';
   m += 'ده ملخص طلبك، برجاء المراجعة والتأكيد 👇\n';
   m += '━━━━━━━━━━━━━━\n';
@@ -5622,7 +5642,7 @@ function doAdminPrint(o) {
     '</style></head><body>'+
 
     // ===== العنوان والكود (التوب) =====
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">طلب تورتة سبيشيال — '+(o.id||'')+'</div>'+
     (o.receivedBy
       ? '<div class="status received">✅ تم الاستلام: '+o.receivedBy+' — '+(o.receivedAt||'')+'</div>'
@@ -5790,7 +5810,7 @@ function printOrdersTable(orders, dateStr){
     '.sum-num{font-size:20px;font-weight:900;color:#c8973a}'+
     '@media print{button{display:none!important}}'+
     '</style></head><body>'+
-    '<h2>🍰 زمزم ديزيرت</h2>'+
+    '<h2>🍰 زمزم ديزرت</h2>'+
     '<div class="sub">طلبات '+(dayName?dayName+' — ':'')+dateStr+'</div>'+
     '<div class="summary">'+
       '<div class="sum-item"><div class="sum-num">'+orders.length+'</div><div>إجمالي الطلبات</div></div>'+
@@ -6023,7 +6043,7 @@ function printCakeSalesReport(){
     'th{background:#b8860b;color:#fff;padding:6px;border:1px solid #ddd}td{padding:5px 6px;border:1px solid #eee;text-align:center}'+
     '.footer{text-align:center;margin-top:14px;font-size:10px;color:#999;border-top:1px solid #eee;padding-top:8px}'+
     '@media print{button{display:none!important}}</style></head><body>'+
-    '<h2>🎂 زمزم ديزيرت — تقرير المبيعات والجرد</h2>'+
+    '<h2>🎂 زمزم ديزرت — تقرير المبيعات والجرد</h2>'+
     '<div class="sub">الفترة: '+period+' • حسب: '+basisLbl+'</div>'+
     '<div class="cards">'+
       '<div class="c"><div class="l">إجمالي قيمة الأوردرات</div><div class="v">'+T.sales+' ج.م</div></div>'+
@@ -6517,7 +6537,7 @@ function doAdminPrint(o) {
     '.footer{text-align:center;margin-top:10px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:7px}'+
     '@media print{button{display:none!important} body{padding:6px}}'+
     '</style></head><body>'+
-    '<h2>🎂 زمزم ديزيرت</h2>'+
+    '<h2>🎂 زمزم ديزرت</h2>'+
     '<div class="sub">'+(hasCake?'طلب تورتة سبيشيال':'فاتورة طلب')+' — '+(o.id||'')+'</div>'+
     (o.receivedBy
       ? '<div class="status received">✅ تم الاستلام: '+o.receivedBy+' — '+(o.receivedAt||'')+'</div>'
@@ -6574,7 +6594,7 @@ function buildClientConfirmMsg(o){
   var remaining = (o.finalPrice&&o.finalPrice>0) ? Math.max(0,o.finalPrice-(o.deposit||0)) : 0;
   var hasCake = !!o.size;
 
-  var m = '🎂 *تأكيد طلب — زمزم ديزيرت*\n';
+  var m = '🎂 *تأكيد طلب — زمزم ديزرت*\n';
   m += 'أهلاً ' + (o.clientName||'') + ' 👋\n';
   m += 'ده ملخص طلبك، برجاء المراجعة والتأكيد 👇\n';
   m += '━━━━━━━━━━━━━━\n';
@@ -6869,7 +6889,7 @@ function doAdminPrint(o){
 
   function linkHdr(part){
     return '<div class="linkhdr">'+
-      '<div class="lh-title">🎂 زمزم ديزيرت — '+(o.id||'')+'</div>'+
+      '<div class="lh-title">🎂 زمزم ديزرت — '+(o.id||'')+'</div>'+
       '<div class="lh-row">👤 <b>'+(o.clientName||'-')+'</b> &nbsp;•&nbsp; 📞 '+(o.clientPhone||'-')+'</div>'+
       '<div class="lh-row">⏰ '+dateLine+' — '+timeLine+' &nbsp;•&nbsp; 📍 '+pickupName+'</div>'+
       (part?'<div class="station">'+part+'</div>':'')+
@@ -6989,7 +7009,7 @@ function doAdminPrint(o){
     // ===== ورقة واحدة (تورتة فقط) — زي ما هي =====
     var _noteBlock = (o.adminNote?'<div class="section" style="border:2px solid #f59e0b;background:#fffbeb"><div class="section-title" style="color:#b45309">📝 ملاحظات داخلية</div><div style="font-size:14px;line-height:1.7;white-space:pre-wrap">'+o.adminNote+'</div></div>':'');
     body = '<div class="page">'+
-      '<h2>🎂 زمزم ديزيرت</h2>'+
+      '<h2>🎂 زمزم ديزرت</h2>'+
       '<div class="sub">'+(hasCake?'طلب تورتة سبيشيال':'فاتورة طلب')+' — '+(o.id||'')+'</div>'+
       statusHTML()+ clientBlock()+ (hasCake?cakeBlock():'')+ _noteBlock+ bands()+ priceBox()+ imgBlock+ footer+
     '</div>';
@@ -7184,7 +7204,7 @@ async function shareOrderWithImage(msg){
   if(!files.length) return 'unsupported';
   try{
     if(navigator.canShare && navigator.canShare({ files:files })){
-      await navigator.share({ files:files, text: msg, title:'طلب زمزم ديزيرت 🎂' });
+      await navigator.share({ files:files, text: msg, title:'طلب زمزم ديزرت 🎂' });
       return 'shared';
     }
     return 'unsupported';
@@ -7252,7 +7272,7 @@ async function submitOrder() {
   const dedicationText = document.getElementById('dedicationText')?.value?.trim() || '';
   const layerHeight = document.querySelector('#layerHeightGrid .option-btn.selected')?.textContent?.trim() || '3 طبقات';
 
-  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزيرت*\n';
+  let msg = '🎂 *طلب تورتة سبيشيال — زمزم ديزرت*\n';
   msg += '━━━━━━━━━━━━━━━━\n';
   msg += '👤 الاسم: ' + order.clientName + '\n';
   msg += '📱 الهاتف: ' + order.clientPhone + '\n';
@@ -7927,7 +7947,7 @@ function _findCakeOrder(id){
 function chefCakeMessage(o){
   var dateLine=(typeof formatDateWithDay==='function')?formatDateWithDay(o.clientDate||''):(o.clientDate||'-');
   var timeLine=(typeof to12Hour==='function')?to12Hour(o.clientTime||''):(o.clientTime||'-');
-  var m='👨‍🍳 *طلب تورتة للشيف — زمزم ديزيرت*\n';
+  var m='👨‍🍳 *طلب تورتة للشيف — زمزم ديزرت*\n';
   m+='━━━━━━━━━━━━━━\n';
   m+='🔖 رقم الطلب: '+(o.id||'')+'\n';
   m+='📅 موعد التسليم: '+dateLine+' — الساعة '+timeLine+'\n';
@@ -7955,23 +7975,19 @@ async function sendToChef(id){
   if(!o.size){ showToast('⚠️ الطلب ده مفيهوش تورتة (طلبات أخرى فقط)'); return; }
   var msg=chefCakeMessage(o);
 
-  // لو فيه صورة (تصميم خاص): شاركها مع النص في مرة واحدة
-  if(o.imgBase64 && navigator.canShare && typeof dataURLtoFile==='function'){
-    try{
-      var f=dataURLtoFile(o.imgBase64,'cake-design');
-      if(f && navigator.canShare({files:[f]})){
-        await navigator.share({files:[f], text:msg, title:'طلب تورتة للشيف 🎂'});
-        return;
-      }
-    }catch(e){ if(e&&e.name==='AbortError') return; }
+  // 📸 لو فيه صورة — نضيف رابط resume بدل إرفاق الصورة
+  if(o.imgBase64 || (o.tiers && o.tiers.some(function(t){ return t.refImg || (t.perImgs && t.perImgs.length); }))){
+    var resumeUrl = (typeof getResumeUrl === 'function') ? getResumeUrl(o.id) : '';
+    if(resumeUrl){
+      msg += '\n━━━━━━━━━━━━━━\n';
+      msg += '📸 *صورة التصميم المرجعية:*\n';
+      msg += resumeUrl + '\n';
+      msg += '👆 اضغط لعرض وتحميل الصورة';
+    }
   }
 
-  // غير كده: افتح واتساب الشيف بالنص، ونزّل الصورة لو موجودة عشان يرفقها
   var wa=chef.wa.replace(/[^0-9]/g,'');
   window.open('https://api.whatsapp.com/send?phone='+wa+'&text='+encodeURIComponent(msg),'_blank');
-  if(o.imgBase64){
-    try{ var a=document.createElement('a'); a.href=o.imgBase64; a.download='cake-design.jpg'; document.body.appendChild(a); a.click(); document.body.removeChild(a); showToast('📎 اتنزّلت صورة التصميم — ارفقها للشيف'); }catch(e){}
-  }
 }
 
 // رندر بيانات الشيف لما تفتح تاب الإعدادات
@@ -8130,7 +8146,7 @@ var _aeImg = null; // null = ماغيّرش (استخدم صورة الأورد�
 
 function aeHandleImg(input){
   var file = input.files[0]; if(!file) return;
-  if (file.size > 6*1024*1024){ showToast('❌ الصورة أكبر من 6MB'); return; }
+  if (file.size > 10*1024*1024){ showToast('❌ الصورة أكبر من 10MB'); return; }
   var reader = new FileReader();
   reader.onload = function(e){
     // ضغط بسيط (أقصى عرض 1100px) لتقليل الحجم
@@ -8208,7 +8224,7 @@ async function sendOrderConfirmToClient(o){
   if (o.imgBase64 && navigator.canShare && typeof dataURLtoFile==='function'){
     try{
       var f=dataURLtoFile(o.imgBase64,'zamzam-cake');
-      if(f && navigator.canShare({files:[f]})){ await navigator.share({files:[f], text:msg, title:'تأكيد طلب — زمزم ديزيرت 🎂'}); return; }
+      if(f && navigator.canShare({files:[f]})){ await navigator.share({files:[f], text:msg, title:'تأكيد طلب — زمزم ديزرت 🎂'}); return; }
     }catch(e){ if(e&&e.name==='AbortError') return; }
   }
   window.open('https://api.whatsapp.com/send?phone='+wa+'&text='+encodeURIComponent(msg),'_blank');
@@ -8318,7 +8334,7 @@ function sendPaymentToBookingMgr(id){
   var o=_findCakeOrder(id); if(!o){ showToast('❌ الأوردر غير موجود'); return; }
   var mgr=getBookingMgr();
   if(!mgr.wa){ showToast('❌ حدّد رقم مسؤول الحجز من الإعدادات'); return; }
-  var m='🧾 *مراجعة دفع — زمزم ديزيرت*\n';
+  var m='🧾 *مراجعة دفع — زمزم ديزرت*\n';
   m+='قام العميل ('+(o.clientName||'-')+') صاحب الرقم ('+(o.clientPhone||'-')+') بدفع مبلغ ('+(o.deposit||0)+' ج.م) على المحفظة الخاصة بكم.\n';
   m+='🔖 رقم الطلب: '+(o.id||'')+'\n';
   m+='📲 الرقم المحوَّل منه: '+(o.sourceNumber||'-')+'\n';
@@ -8497,7 +8513,7 @@ function branchExit(){
       if(typeof adminEditorMode!=='undefined' && adminEditorMode==='create'){
         var bs=document.getElementById('branchSection');
         if(bs && bs.style.display!=='none' && _branchCreator){ base.createdBy=_branchCreator.name; base.createdByRole='branch'; }
-        else if(!base.createdBy){ base.createdBy='👑 مدير المبيعات'; base.createdByRole='admin'; }
+        else if(!base.createdBy){ base.createdBy='👑 مدير الحجز العام'; base.createdByRole='admin'; }
       }
       return base;
     };
@@ -9406,7 +9422,7 @@ window.addEventListener('load', function(){
 function chefCakeMessage(o){
   var dateLine=(typeof formatDateWithDay==='function')?formatDateWithDay(o.clientDate||''):(o.clientDate||'-');
   var timeLine=(typeof to12Hour==='function')?to12Hour(o.clientTime||''):(o.clientTime||'-');
-  var m='👨‍🍳 *طلب تورتة للشيف — زمزم ديزيرت*\n';
+  var m='👨‍🍳 *طلب تورتة للشيف — زمزم ديزرت*\n';
   m+='━━━━━━━━━━━━━━\n';
   m+='👤 العميل: '+(o.clientName||'-')+'\n';
   m+='🔖 رقم الطلب: '+(o.id||'')+'\n';
@@ -9901,7 +9917,7 @@ function sendPaymentToBookingMgr(id){
   if(target && target.wa){ wa=target.wa; mgrName=target.name; }
   else { var g=getBookingMgr(); if(!g.wa){ showToast('❌ مفيش رقم لمسؤول المحفظة ولا مسؤول الحجز العام — حدّده من الإعدادات'); return; } wa=g.wa.replace(/[^0-9]/g,''); mgrName=g.name||'مسؤول الحجز'; }
   if(wa.indexOf('0')===0) wa='2'+wa;
-  var m='🧾 *مراجعة دفع — زمزم ديزيرت*\n';
+  var m='🧾 *مراجعة دفع — زمزم ديزرت*\n';
   m+='قام العميل ('+(o.clientName||'-')+') صاحب الرقم ('+(o.clientPhone||'-')+') بدفع مبلغ ('+(o.deposit||0)+' ج.م) على المحفظة الخاصة بكم'+(o.walletName?(' ('+o.walletName+' '+(o.walletNum||'')+')'):'')+'.\n';
   m+='🔖 رقم الطلب: '+(o.id||'')+'\n';
   m+='📲 الرقم المحوَّل منه: '+(o.sourceNumber||'-')+'\n';
@@ -10348,7 +10364,7 @@ async function sendPaymentToBookingMgr(id){
   if(target && target.wa){ wa=target.wa; mgrName=target.name; }
   else { var g=getBookingMgr(); if(!g.wa){ showToast('❌ مفيش رقم لمسؤول المحفظة ولا مسؤول الحجز — حدّده من الإعدادات'); return; } wa=g.wa.replace(/[^0-9]/g,''); mgrName=g.name||'مسؤول الحجز'; }
   if(wa.indexOf('0')===0) wa='2'+wa;
-  var m='🧾 *مراجعة دفع — زمزم ديزيرت*\n';
+  var m='🧾 *مراجعة دفع — زمزم ديزرت*\n';
   m+='قام العميل ('+(o.clientName||'-')+') صاحب الرقم ('+(o.clientPhone||'-')+') بدفع مبلغ ('+(o.deposit||0)+' ج.م) على المحفظة الخاصة بكم'+(o.walletName?(' ('+o.walletName+' '+(o.walletNum||'')+')'):'')+'.\n';
   m+='🔖 رقم الطلب: '+(o.id||'')+'\n';
   m+='📲 الرقم المحوَّل منه: '+(o.sourceNumber||'-')+'\n';
@@ -11478,7 +11494,7 @@ function fixOldAdminLabel(){
     if(!targets.length){ box.innerHTML='<div style="text-align:center;padding:10px;color:#16a34a;font-size:12px">✅ مفيش طلبات قديمة محتاجة تصحيح</div>'; return; }
     var done=0;
     targets.forEach(function(key){
-      cakeDb.ref('cake_orders/'+key).update({createdBy:'👑 مدير المبيعات'}).then(function(){
+      cakeDb.ref('cake_orders/'+key).update({createdBy:'👑 مدير الحجز العام'}).then(function(){
         done++;
         box.innerHTML='<div style="text-align:center;padding:10px;color:#16a34a;font-size:12px">✅ اتصحّح '+done+' من '+targets.length+'</div>';
       }).catch(function(){});
@@ -11933,7 +11949,7 @@ function _currentEditorIdentity(){
   if(bs && bs.style.display!=='none' && typeof _branchCreator!=='undefined' && _branchCreator) return {name:_branchCreator.name, role:'branch'};
   var ss=document.getElementById('shiftSection');
   if(ss && ss.style.display!=='none' && typeof _shiftCreator!=='undefined' && _shiftCreator) return {name:_shiftCreator.name, role:'shift'};
-  return {name:'👑 مدير المبيعات', role:'admin'};
+  return {name:'👑 مدير الحجز العام', role:'admin'};
 }
 function _fmtEditedAt(iso){
   try{
@@ -13625,6 +13641,240 @@ function stSubmit(){
   window.exportBalancesXLS        = exportBalancesXLS;
   window.openTrackerBalancesModal = openTrackerBalancesModal;
   window.closeTrackerBalancesModal= closeTrackerBalancesModal;
+
+})();
+</script>
+
+<!-- ============================================================
+     📸 نظام حفظ الصور في Firebase + رابط Resume في الواتساب
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // ==========================================================
+  // 📸 ضغط الصور (Canvas resize + JPEG compression)
+  //    الحد: 4MB → تنضغط تلقائياً لـ ~300KB
+  // ==========================================================
+  function compressImage(dataUrl, maxW, quality){
+    maxW = maxW || 1200;
+    quality = quality || 0.65;
+    return new Promise(function(resolve){
+      var img = new Image();
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        if(w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', quality);
+        // لو لسه كبيرة (> 500KB) → نضغط أكتر
+        if(compressed.length > 500000 && quality > 0.3){
+          resolve(compressImage(dataUrl, Math.round(maxW * 0.7), quality - 0.15));
+        }else{
+          resolve(compressed);
+        }
+      };
+      img.onerror = function(){ resolve(dataUrl); };
+      img.src = dataUrl;
+    });
+  }
+
+  // ==========================================================
+  // 💾 حفظ الصور في Firebase: cake_images/{orderId}
+  // ==========================================================
+  function saveOrderImages(orderId, imgArray){
+    if(!orderId || !imgArray || !imgArray.length) return Promise.resolve();
+    if(typeof cakeDb === 'undefined' || !cakeDb) return Promise.resolve();
+    return cakeDb.ref('cake_images/' + orderId).set(imgArray).catch(function(err){
+      console.error('Failed to save images:', err);
+    });
+  }
+
+  // ==========================================================
+  // 📸 استخراج كل الصور من الطلب (imgBase64 + tiers)
+  // ==========================================================
+  function extractOrderImages(o){
+    var imgs = [];
+    // الصورة الرئيسية
+    if(o.imgBase64){
+      imgs.push({
+        data: o.imgBase64,
+        label: '🖼️ الصورة المرجعية الأساسية',
+        addedAt: o.createdAt || new Date().toISOString()
+      });
+    }
+    // صور الأدوار (special tiers)
+    if(o.tiers && Array.isArray(o.tiers)){
+      var tierNames = ['الأول','الثاني','الثالث','الرابع','الخامس'];
+      o.tiers.forEach(function(t, i){
+        if(t.refImg){
+          imgs.push({
+            data: t.refImg,
+            label: '🎂 صورة الدور '+ (tierNames[i]||(i+1)),
+            addedAt: o.createdAt || new Date().toISOString()
+          });
+        }
+        if(t.perImgs && Array.isArray(t.perImgs)){
+          t.perImgs.forEach(function(pImg, j){
+            imgs.push({
+              data: pImg,
+              label: '🎂 صورة '+(j+1)+' — الدور '+(tierNames[i]||(i+1)),
+              addedAt: o.createdAt || new Date().toISOString()
+            });
+          });
+        }
+      });
+    }
+    return imgs;
+  }
+
+  // ==========================================================
+  // 🔗 بناء رابط الـ Resume
+  // ==========================================================
+  function getResumeUrl(orderId){
+    // نحدد الـ base URL تلقائياً من الصفحة الحالية
+    var base = window.location.origin + window.location.pathname.replace(/\/[^\/]*$/, '/');
+    return base + 'resume.html?id=' + encodeURIComponent(orderId);
+  }
+
+  // ==========================================================
+  // 🔄 ضغط + حفظ عند إنشاء/تعديل الطلب
+  //    (نعمل wrap على persistOrder)
+  // ==========================================================
+  function _wrapPersistOrder(){
+    if(typeof window.persistOrder !== 'function') return;
+    if(window.persistOrder.__imgSaveWrapped) return;
+    var orig = window.persistOrder;
+    window.persistOrder = function(o){
+      // أولاً: نحفظ الطلب العادي (بدون صور — زي ما هو)
+      var result = orig.apply(this, arguments);
+      // ثانياً: لو فيه صور — نضغطها ونحفظها في cake_images
+      var imgs = extractOrderImages(o);
+      if(imgs.length > 0){
+        // ضغط كل صورة
+        var compressionPromises = imgs.map(function(img){
+          // لو الصورة أكبر من 300KB — نضغطها
+          if(img.data && img.data.length > 300000){
+            return compressImage(img.data).then(function(compressed){
+              return { data: compressed, label: img.label, addedAt: img.addedAt };
+            });
+          }
+          return Promise.resolve(img);
+        });
+        Promise.all(compressionPromises).then(function(compressedImgs){
+          saveOrderImages(o.id, compressedImgs).then(function(){
+            console.log('📸 Saved ' + compressedImgs.length + ' images for ' + o.id);
+          });
+        }).catch(function(err){
+          console.error('Image compression/save error:', err);
+        });
+      }
+      return result;
+    };
+    window.persistOrder.__imgSaveWrapped = true;
+  }
+  setTimeout(_wrapPersistOrder, 500);
+  setInterval(_wrapPersistOrder, 3000);
+
+  // كمان نعمل wrap على submitOrder (اللي بيبعت الطلب من واجهة العميل)
+  function _wrapSubmitOrder(){
+    if(typeof window.submitOrder !== 'function') return;
+    if(window.submitOrder.__imgSaveWrapped) return;
+    var orig = window.submitOrder;
+    window.submitOrder = function(){
+      var result = orig.apply(this, arguments);
+      // بعد الإرسال — نحاول نحفظ الصور
+      try{
+        if(typeof order !== 'undefined' && order && order.imgBase64){
+          var imgs = extractOrderImages(order);
+          if(imgs.length > 0){
+            var oid = order.id || (typeof orderData !== 'undefined' ? orderData.id : '');
+            if(oid){
+              var compressionPromises = imgs.map(function(img){
+                if(img.data && img.data.length > 300000){
+                  return compressImage(img.data).then(function(c){ return {data:c,label:img.label,addedAt:img.addedAt}; });
+                }
+                return Promise.resolve(img);
+              });
+              Promise.all(compressionPromises).then(function(ci){
+                saveOrderImages(oid, ci);
+              }).catch(function(){});
+            }
+          }
+        }
+      }catch(e){}
+      return result;
+    };
+    window.submitOrder.__imgSaveWrapped = true;
+  }
+  setTimeout(_wrapSubmitOrder, 500);
+  setInterval(_wrapSubmitOrder, 3000);
+
+  // ==========================================================
+  // 📝 تعديل رسائل الواتساب — استبدال "صورة مرفقة — ترسل منفصلة"
+  //    برابط resume.html
+  // ==========================================================
+  function _patchBuildClientConfirmMsg(){
+    if(typeof window.buildClientConfirmMsg !== 'function') return;
+    if(window.buildClientConfirmMsg.__resumePatched) return;
+    var orig = window.buildClientConfirmMsg;
+    window.buildClientConfirmMsg = function(o){
+      var msg = orig.apply(this, arguments);
+      // استبدال النص القديم برابط resume
+      var oldText1 = '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)\n';
+      var oldText2 = '🖼️ (صورة مرجعية مرفقة — ترسل منفصلة على واتساب)';
+      if(msg.indexOf(oldText1) > -1 || msg.indexOf(oldText2) > -1){
+        var resumeLink = getResumeUrl(o.id);
+        var replacement = '📸 *صورة التصميم المرجعية:*\n' +
+          '👇 اضغط على الرابط لعرض وتحميل الصورة:\n' +
+          resumeLink + '\n';
+        msg = msg.replace(oldText1, replacement).replace(oldText2, replacement);
+      }
+      return msg;
+    };
+    window.buildClientConfirmMsg.__resumePatched = true;
+  }
+  setTimeout(_patchBuildClientConfirmMsg, 500);
+  setInterval(_patchBuildClientConfirmMsg, 3000);
+
+  // ==========================================================
+  // 💰 تعديل رسالة المحفظة لما العربون مدفوع بالكامل
+  // ==========================================================
+  function _patchWalletMsg(){
+    if(typeof window.buildClientConfirmMsg !== 'function') return;
+    if(window.buildClientConfirmMsg.__walletPaidPatched) return;
+    // نحتاج نلف بعد الـ resume patch
+    if(!window.buildClientConfirmMsg.__resumePatched) return;
+    var orig = window.buildClientConfirmMsg;
+    window.buildClientConfirmMsg = function(o){
+      var msg = orig.apply(this, arguments);
+      // لو الدفع محفظة والعربون يغطي المطلوب (مدفوع بالكامل)
+      if(o.payMethod === 'wallet' && o.walletNum){
+        var price = parseFloat(o.pricedPrice) || parseFloat(o.finalPrice) || 0;
+        var dep   = parseFloat(o.deposit) || 0;
+        var remaining = Math.max(0, price - dep);
+        if(remaining <= 0 && dep > 0){
+          // العميل دفع كل حاجة — نغيّر الرسالة
+          msg = msg.replace('👇 رقم المحفظة للتحويل:', '✅ عملية تحويل ناجحة على رقم:');
+          msg = msg.replace('⬆️ انسخ الرقم وحوّل عليه المبلغ المطلوب', '💰✔️ تم تأكيد الدفع');
+        }
+      }
+      return msg;
+    };
+    window.buildClientConfirmMsg.__walletPaidPatched = true;
+  }
+  setTimeout(_patchWalletMsg, 800);
+  setInterval(_patchWalletMsg, 3000);
+
+  // ==========================================================
+  // 🔓 كشف الفانكشنز globally
+  // ==========================================================
+  window.compressImage       = compressImage;
+  window.saveOrderImages     = saveOrderImages;
+  window.extractOrderImages  = extractOrderImages;
+  window.getResumeUrl        = getResumeUrl;
 
 })();
 </script>

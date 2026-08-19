@@ -831,6 +831,11 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
       <button onclick="toggleCakeCalendar('admin')" style="width:100%;padding:9px;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif;margin-bottom:12px">📅 التقويم الشهري</button>
       <div id="adminCalendar" style="display:none;margin-bottom:12px"></div>
       <button onclick="openAdminCreateOrder()" style="width:100%;padding:12px;margin-bottom:12px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:10px;font-size:14px;font-weight:800;border:none;cursor:pointer;font-family:'Cairo',sans-serif">➕ إنشاء أوردر جديد (الأدمن)</button>
+      <!-- أزرار الأرشيف -->
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button onclick="archiveOldOrders()" id="archiveBtn" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">📦 أرشفة الطلبات القديمة</button>
+        <button onclick="openArchiveViewer()" style="flex:1;padding:10px;background:linear-gradient(135deg,#475569,#334155);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif;position:relative">📂 عرض الأرشيف <span id="archiveCountBadge" style="display:none;background:#f59e0b;color:#fff;border-radius:100px;padding:1px 6px;font-size:10px;font-weight:900;margin-right:4px"></span></button>
+      </div>
       <!-- MONTHLY FILTER -->
       <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
         <select id="monthFilter" onchange="loadAdminOrders()" style="flex:1;padding:8px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;background:#fff;font-family:'Cairo',sans-serif"></select>
@@ -847,11 +852,6 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
         <div id="adminDateResults" style="margin-top:8px"></div>
       </div>
       <div id="adminOrders" style="font-size:13px;color:var(--text2)">جاري التحميل...</div>
-      <!-- أزرار الأرشيف -->
-      <div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:2px dashed var(--border)">
-        <button onclick="archiveOldOrders()" id="archiveBtn" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">📦 أرشفة الطلبات القديمة</button>
-        <button onclick="openArchiveViewer()" style="flex:1;padding:10px;background:linear-gradient(135deg,#475569,#334155);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif;position:relative">📂 عرض الأرشيف <span id="archiveCountBadge" style="display:none;background:#f59e0b;color:#fff;border-radius:100px;padding:1px 6px;font-size:10px;font-weight:900;margin-right:4px"></span></button>
-      </div>
     </div>
 
     <!-- RATINGS TAB -->

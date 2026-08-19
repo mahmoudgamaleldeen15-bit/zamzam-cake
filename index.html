@@ -14312,5 +14312,116 @@ function stSubmit(){
 
 })();
 </script>
+
+<!-- ============================================================
+     ✅ زر "تم التسليم" لكل طلب في لوحة الأدمن
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // تأكيد التسليم
+  function markAsDelivered(orderId){
+    var name = prompt('✅ تأكيد تسليم الطلب\n\nاسم الموظف اللي سلّم الطلب:',
+      localStorage.getItem('zz_cake_admin_name') || 'الأدمن');
+    if(name === null) return; // المستخدم ضغط إلغاء
+    if(!name.trim()){ if(typeof showToast==='function') showToast('❌ اكتب اسم الموظف'); return; }
+
+    var now = new Date();
+    var patch = {
+      receivedBy: name.trim(),
+      receivedAt: now.toISOString().substring(0,16).replace('T',' ')
+    };
+
+    // تحديث localStorage
+    try{
+      var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      var idx = local.findIndex(function(x){ return x.id === orderId; });
+      if(idx > -1) Object.assign(local[idx], patch);
+      localStorage.setItem('zz_cake_orders', JSON.stringify(local));
+    }catch(e){}
+    // تحديث _rtMap
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap && _rtMap[orderId]){
+        Object.assign(_rtMap[orderId], patch);
+      }
+    }catch(e){}
+    // تحديث Firebase
+    if(typeof cakeDb !== 'undefined' && cakeDb){
+      cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(){});
+    }
+
+    if(typeof showToast==='function') showToast('✅ تم تسجيل التسليم — '+name.trim());
+    // إعادة تحميل القائمة
+    if(typeof loadAdminOrders==='function') try{ loadAdminOrders(); }catch(e){}
+  }
+
+  // حقن زر التسليم في كل بطاقة طلب (بعد كل رندر)
+  function _injectDeliveryButtons(){
+    var container = document.getElementById('adminOrders');
+    if(!container) return;
+
+    // كل بطاقة فيها onclick="openOrderDetail('...')" أو saveOrderPricing
+    var cards = container.querySelectorAll('div[style*="border-radius:14px"][style*="padding:14px"]');
+    cards.forEach(function(card){
+      if(card.getAttribute('data-dlv-done') === '1') return;
+
+      // نستخرج الـ orderId من أي onclick في البطاقة
+      var orderId = null;
+      var allBtns = card.querySelectorAll('button[onclick]');
+      allBtns.forEach(function(btn){
+        var oc = btn.getAttribute('onclick')||'';
+        var m = oc.match(/openOrderDetail\('([^']+)'\)|saveOrderPricing\('([^']+)'\)|openAdminEditOrder\('([^']+)'\)|deleteAdminOrder\('([^']+)'\)/);
+        if(m) orderId = m[1]||m[2]||m[3]||m[4];
+      });
+      if(!orderId) return;
+
+      // نتأكد الطلب مش مسلّم بالفعل
+      var isReceived = card.innerHTML.indexOf('استلمه:') > -1 || card.innerHTML.indexOf('تم الاستلام') > -1;
+      if(isReceived){
+        card.setAttribute('data-dlv-done', '1');
+        return;
+      }
+
+      // نلاقي آخر صف أزرار (اللي فيه حذف/تعديل)
+      var btnRows = card.querySelectorAll('div[style*="display:flex"][style*="gap"]');
+      var lastBtnRow = null;
+      btnRows.forEach(function(r){
+        if(r.querySelector('button')) lastBtnRow = r;
+      });
+
+      if(lastBtnRow){
+        // نضيف الزر
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = 'padding:8px 12px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;white-space:nowrap';
+        btn.textContent = '✅ تم التسليم';
+        btn.onclick = function(e){
+          e.stopPropagation();
+          markAsDelivered(orderId);
+        };
+        lastBtnRow.appendChild(btn);
+      }
+
+      card.setAttribute('data-dlv-done', '1');
+    });
+  }
+
+  // MutationObserver على adminOrders
+  function _setupDeliveryMO(){
+    var container = document.getElementById('adminOrders');
+    if(!container || container.__dlvMO) return;
+    var mo = new MutationObserver(function(){ _injectDeliveryButtons(); });
+    mo.observe(container, { childList: true, subtree: true });
+    container.__dlvMO = mo;
+    _injectDeliveryButtons();
+  }
+
+  setInterval(_setupDeliveryMO, 3000);
+  setTimeout(_setupDeliveryMO, 1000);
+
+  window.markAsDelivered = markAsDelivered;
+})();
+</script>
 </body>
 </html>

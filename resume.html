@@ -109,22 +109,43 @@ body{font-family:'Cairo',sans-serif;background:var(--cream);color:#333;min-heigh
     }
   });
 
-  // أولاً: نجرب نجيب الصور من cake_images/ORDER_ID
-  function loadImages(orderId, callback){
-    db.ref('cake_images/' + orderId).once('value').then(function(snap){
-      if(snap.exists()){
-        var data = snap.val();
-        var imgs = [];
-        if(Array.isArray(data)){
-          imgs = data;
-        }else if(typeof data === 'object'){
-          Object.keys(data).forEach(function(k){ if(data[k]) imgs.push(data[k]); });
-        }
-        callback(imgs);
-      }else{
-        callback([]);
+  // الصور موجودة داخل الطلب نفسه
+  function loadImages(orderObj, callback){
+    var imgs = [];
+    // 1) orderImages array (النظام الجديد)
+    if(orderObj.orderImages){
+      var oi = orderObj.orderImages;
+      if(Array.isArray(oi)){
+        oi.forEach(function(img){ if(img && img.data) imgs.push(img); });
+      }else if(typeof oi === 'object'){
+        Object.keys(oi).forEach(function(k){ if(oi[k] && oi[k].data) imgs.push(oi[k]); });
       }
-    }).catch(function(){ callback([]); });
+    }
+    // 2) imgBase64 — الصورة المرجعية (محفوظة مباشرة في الطلب)
+    if(orderObj.imgBase64){
+      var already = imgs.find(function(x){ return x.data === orderObj.imgBase64; });
+      if(!already){
+        imgs.push({ data: orderObj.imgBase64, label: '🖼️ الصورة المرجعية', addedAt: orderObj.createdAt || '' });
+      }
+    }
+    // 3) paymentProof — إثبات التحويل
+    if(orderObj.paymentProof){
+      var already2 = imgs.find(function(x){ return x.data === orderObj.paymentProof; });
+      if(!already2){
+        imgs.push({ data: orderObj.paymentProof, label: '💳 إثبات التحويل', addedAt: orderObj.createdAt || '' });
+      }
+    }
+    // 4) صور الأدوار (special tiers)
+    if(orderObj.tiers && Array.isArray(orderObj.tiers)){
+      var tierNames = ['الأول','الثاني','الثالث','الرابع','الخامس'];
+      orderObj.tiers.forEach(function(t, i){
+        if(t && t.refImg){
+          var alr = imgs.find(function(x){ return x.data === t.refImg; });
+          if(!alr) imgs.push({ data: t.refImg, label: '🎂 صورة الدور '+(tierNames[i]||(i+1)), addedAt: orderObj.createdAt || '' });
+        }
+      });
+    }
+    callback(imgs);
   }
 
   function renderOrder(o){
@@ -154,8 +175,8 @@ body{font-family:'Cairo',sans-serif;background:var(--cream);color:#333;min-heigh
 
     document.getElementById('content').innerHTML = html;
 
-    // جلب الصور
-    loadImages(o.id, function(imgs){
+    // جلب الصور من الطلب نفسه
+    loadImages(o, function(imgs){
       var container = document.getElementById('imagesContainer');
       if(!imgs.length){
         container.innerHTML = '<div style="text-align:center;padding:20px;color:#999"><div style="font-size:36px">📭</div><div style="margin-top:6px;font-size:13px;font-weight:700">لا توجد صور مرفقة لهذا الطلب</div></div>';

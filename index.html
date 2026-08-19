@@ -5224,13 +5224,22 @@ function collectAdminOrder(){
 }
 
 function persistOrder(o){
-  // حفظ محلي (استبدال لو موجود وإلا إضافة)
+  // ✅ حفظ على Firebase أولاً — مع الصور كاملة
+  if (cakeDb) { try { cakeDb.ref('cake_orders/'+o.id).set(o); } catch(e){} }
+  // ✅ حفظ محلي — بدون صور (عشان localStorage ما يتملاش)
+  var light = Object.assign({}, o);
+  delete light.imgBase64;
+  delete light.paymentProof;
+  delete light.orderImages;
+  if(light.tiers && Array.isArray(light.tiers)){
+    light.tiers = light.tiers.map(function(t){
+      var tc = Object.assign({}, t); delete tc.refImg; delete tc.perImgs; return tc;
+    });
+  }
   var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
   var idx = orders.findIndex(function(x){ return x.id===o.id; });
-  if (idx>-1) orders[idx] = o; else orders.unshift(o);
-  localStorage.setItem('zz_cake_orders', JSON.stringify(orders.slice(0,200)));
-  // حفظ على Firebase
-  if (cakeDb) { try { cakeDb.ref('cake_orders/'+o.id).set(o); } catch(e){} }
+  if (idx>-1) orders[idx] = light; else orders.unshift(light);
+  try { localStorage.setItem('zz_cake_orders', JSON.stringify(orders.slice(0,200))); } catch(e){}
 }
 
 function saveAdminOrder(action){

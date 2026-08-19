@@ -13740,77 +13740,177 @@ function stSubmit(){
   }
 
   // ==========================================================
-  // 🔄 ضغط + حفظ عند إنشاء/تعديل الطلب
-  //    (نعمل wrap على persistOrder)
+  // 🔄 حفظ الصور — حل مباشر وأضمن
+  //    بدل wrapping على persistOrder (اللي مش دايماً بيلاقي imgBase64)
+  //    هنعمل wrap على saveAdminOrder + submitOrder + saveOrderPricing
   // ==========================================================
-  function _wrapPersistOrder(){
-    if(typeof window.persistOrder !== 'function') return;
-    if(window.persistOrder.__imgSaveWrapped) return;
-    var orig = window.persistOrder;
-    window.persistOrder = function(o){
-      // أولاً: نحفظ الطلب العادي (بدون صور — زي ما هو)
-      var result = orig.apply(this, arguments);
-      // ثانياً: لو فيه صور — نضغطها ونحفظها في cake_images
-      var imgs = extractOrderImages(o);
-      if(imgs.length > 0){
-        // ضغط كل صورة
-        var compressionPromises = imgs.map(function(img){
-          // لو الصورة أكبر من 300KB — نضغطها
-          if(img.data && img.data.length > 300000){
-            return compressImage(img.data).then(function(compressed){
-              return { data: compressed, label: img.label, addedAt: img.addedAt };
-            });
-          }
-          return Promise.resolve(img);
-        });
-        Promise.all(compressionPromises).then(function(compressedImgs){
-          saveOrderImages(o.id, compressedImgs).then(function(){
-            console.log('📸 Saved ' + compressedImgs.length + ' images for ' + o.id);
+
+  /** حفظ صور الطلب في Firebase (cake_images/) — ضغط + رفع */
+  function _saveImagesForOrder(orderId, imgBase64, paymentProof, tiers){
+    if(!orderId) return;
+    var imgs = [];
+    // الصورة المرجعية الأساسية
+    if(imgBase64){
+      imgs.push({ data: imgBase64, label: '🖼️ الصورة المرجعية الأساسية', addedAt: new Date().toISOString() });
+    }
+    // إثبات التحويل
+    if(paymentProof){
+      imgs.push({ data: paymentProof, label: '💳 إثبات التحويل', addedAt: new Date().toISOString() });
+    }
+    // صور الأدوار (special tiers)
+    if(tiers && Array.isArray(tiers)){
+      var tierNames = ['الأول','الثاني','الثالث','الرابع','الخامس'];
+      tiers.forEach(function(t, i){
+        if(t.refImg) imgs.push({ data: t.refImg, label: '🎂 صورة الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
+        if(t.perImgs && Array.isArray(t.perImgs)){
+          t.perImgs.forEach(function(pImg, j){
+            imgs.push({ data: pImg, label: '🎂 صورة '+(j+1)+' — الدور '+(tierNames[i]||(i+1)), addedAt: new Date().toISOString() });
           });
-        }).catch(function(err){
-          console.error('Image compression/save error:', err);
-        });
+        }
+      });
+    }
+    if(!imgs.length) return;
+
+    // ضغط كل صورة أكبر من 300KB
+    var compressionPromises = imgs.map(function(img){
+      if(img.data && img.data.length > 300000){
+        return compressImage(img.data).then(function(c){ return {data:c, label:img.label, addedAt:img.addedAt}; });
+      }
+      return Promise.resolve(img);
+    });
+    Promise.all(compressionPromises).then(function(ci){
+      saveOrderImages(orderId, ci).then(function(){
+        console.log('📸 Saved '+ci.length+' images for '+orderId);
+      });
+    }).catch(function(err){ console.error('Image save error:', err); });
+  }
+
+  // ✅ Wrap saveAdminOrder — يمسك الصور من _aeImg و paymentProof قبل ما تضيع
+  function _wrapSaveAdminOrder(){
+    if(typeof window.saveAdminOrder !== 'function') return;
+    if(window.saveAdminOrder.__imgSaveWrapped) return;
+    var orig = window.saveAdminOrder;
+    window.saveAdminOrder = function(action){
+      // نمسك الصور قبل ما saveAdminOrder يعمل collectAdminOrder ويحفظ
+      var imgData = null;
+      var proofData = null;
+      var tiersData = null;
+
+      // 1) الصورة المرجعية من _aeImg (المتغير العام بتاع الإديتور)
+      try{
+        if(typeof _aeImg !== 'undefined' && _aeImg) imgData = _aeImg;
+      }catch(e){}
+      // 2) لو مفيش _aeImg، نشوف adminEditorBase
+      if(!imgData){
+        try{
+          if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.imgBase64){
+            imgData = adminEditorBase.imgBase64;
+          }
+        }catch(e){}
+      }
+      // 3) إثبات التحويل
+      try{
+        if(typeof _payProofImg !== 'undefined' && _payProofImg) proofData = _payProofImg;
+      }catch(e){}
+      if(!proofData){
+        try{
+          if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.paymentProof){
+            proofData = adminEditorBase.paymentProof;
+          }
+        }catch(e){}
+      }
+      // 4) صور الأدوار
+      try{
+        if(typeof adminEditorBase !== 'undefined' && adminEditorBase && adminEditorBase.tiers){
+          tiersData = adminEditorBase.tiers;
+        }
+      }catch(e){}
+
+      // نشغل الأصلية
+      var result = orig.apply(this, arguments);
+
+      // بعد الحفظ — نحدد الـ orderId (اللي اتحفظ للتو)
+      if(imgData || proofData || tiersData){
+        try{
+          // نلاقي آخر أوردر اتحفظ
+          var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+          var lastOrder = orders[0]; // أحدث واحد
+          if(lastOrder && lastOrder.id){
+            _saveImagesForOrder(lastOrder.id, imgData, proofData, tiersData);
+          }
+        }catch(e){}
       }
       return result;
     };
-    window.persistOrder.__imgSaveWrapped = true;
+    window.saveAdminOrder.__imgSaveWrapped = true;
   }
-  setTimeout(_wrapPersistOrder, 500);
-  setInterval(_wrapPersistOrder, 3000);
+  setTimeout(_wrapSaveAdminOrder, 500);
+  setInterval(_wrapSaveAdminOrder, 3000);
 
-  // كمان نعمل wrap على submitOrder (اللي بيبعت الطلب من واجهة العميل)
+  // ✅ Wrap submitOrder — يمسك الصور من global order object (واجهة العميل)
   function _wrapSubmitOrder(){
     if(typeof window.submitOrder !== 'function') return;
     if(window.submitOrder.__imgSaveWrapped) return;
     var orig = window.submitOrder;
     window.submitOrder = function(){
-      var result = orig.apply(this, arguments);
-      // بعد الإرسال — نحاول نحفظ الصور
+      // نمسك الصورة قبل الإرسال
+      var imgData = null;
+      var tiersData = null;
       try{
-        if(typeof order !== 'undefined' && order && order.imgBase64){
-          var imgs = extractOrderImages(order);
-          if(imgs.length > 0){
-            var oid = order.id || (typeof orderData !== 'undefined' ? orderData.id : '');
-            if(oid){
-              var compressionPromises = imgs.map(function(img){
-                if(img.data && img.data.length > 300000){
-                  return compressImage(img.data).then(function(c){ return {data:c,label:img.label,addedAt:img.addedAt}; });
-                }
-                return Promise.resolve(img);
-              });
-              Promise.all(compressionPromises).then(function(ci){
-                saveOrderImages(oid, ci);
-              }).catch(function(){});
-            }
-          }
+        if(typeof order !== 'undefined' && order){
+          imgData = order.imgBase64 || null;
+          tiersData = order.tiers || null;
         }
       }catch(e){}
+
+      var result = orig.apply(this, arguments);
+
+      // بعد الإرسال — نحفظ الصور
+      if(imgData || tiersData){
+        try{
+          var oid = null;
+          if(typeof orderData !== 'undefined' && orderData && orderData.id) oid = orderData.id;
+          else if(typeof order !== 'undefined' && order && order.id) oid = order.id;
+          // لو مفيش id بعد — نستنى شوية ونحاول تاني
+          if(oid){
+            _saveImagesForOrder(oid, imgData, null, tiersData);
+          }else{
+            setTimeout(function(){
+              try{
+                if(typeof orderData !== 'undefined' && orderData && orderData.id){
+                  _saveImagesForOrder(orderData.id, imgData, null, tiersData);
+                }
+              }catch(e2){}
+            }, 2000);
+          }
+        }catch(e){}
+      }
       return result;
     };
     window.submitOrder.__imgSaveWrapped = true;
   }
   setTimeout(_wrapSubmitOrder, 500);
   setInterval(_wrapSubmitOrder, 3000);
+
+  // ✅ Wrap saveOrderPricing — لما الأدمن يسعّر الطلب ويختار محفظة، ممكن يكون رفع إثبات
+  function _wrapSaveOrderPricing(){
+    if(typeof window.saveOrderPricing !== 'function') return;
+    if(window.saveOrderPricing.__imgSaveWrapped) return;
+    var orig = window.saveOrderPricing;
+    window.saveOrderPricing = function(orderId){
+      var result = orig.apply(this, arguments);
+      // نشوف لو فيه paymentProof اترفع
+      try{
+        if(typeof _payProofImg !== 'undefined' && _payProofImg && orderId){
+          _saveImagesForOrder(orderId, null, _payProofImg, null);
+        }
+      }catch(e){}
+      return result;
+    };
+    window.saveOrderPricing.__imgSaveWrapped = true;
+  }
+  setTimeout(_wrapSaveOrderPricing, 500);
+  setInterval(_wrapSaveOrderPricing, 3000);
 
   // ==========================================================
   // 📝 تعديل رسائل الواتساب — استبدال "صورة مرفقة — ترسل منفصلة"

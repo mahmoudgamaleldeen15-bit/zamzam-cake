@@ -69,8 +69,6 @@ body{font-family:'Cairo',sans-serif;background:var(--cream);color:#333;min-heigh
 
   var app = firebase.initializeApp(CAKE_FB_CONFIG, 'resume');
   var db  = firebase.database(app);
-  // تسجيل دخول مجهول
-  firebase.auth(app).signInAnonymously().catch(function(){});
 
   var params = new URLSearchParams(window.location.search);
   var orderId = params.get('id');
@@ -80,8 +78,11 @@ body{font-family:'Cairo',sans-serif;background:var(--cream);color:#333;min-heigh
     return;
   }
 
-  // جلب بيانات الطلب من Firebase
-  db.ref('cake_orders/' + orderId).once('value').then(function(snap){
+  // ✅ تسجيل دخول مجهول أولاً — ثم قراءة البيانات بعد نجاحه
+  firebase.auth(app).signInAnonymously().then(function(){
+    // Auth نجح — دلوقتي نقرأ الطلب
+    return db.ref('cake_orders/' + orderId).once('value');
+  }).then(function(snap){
     if(!snap.exists()){
       showError('❌ الطلب غير موجود', 'رقم الطلب: ' + orderId);
       return;
@@ -89,7 +90,23 @@ body{font-family:'Cairo',sans-serif;background:var(--cream);color:#333;min-heigh
     var o = snap.val();
     renderOrder(o);
   }).catch(function(err){
-    showError('❌ خطأ في التحميل', err.message || 'تعذّر الاتصال بقاعدة البيانات');
+    var msg = err.message || '';
+    if(msg.indexOf('permission_denied') > -1){
+      showError('🔐 تعذّر الوصول', 'جاري إعادة المحاولة...');
+      // إعادة محاولة بعد ثانية
+      setTimeout(function(){
+        firebase.auth(app).signInAnonymously().then(function(){
+          return db.ref('cake_orders/' + orderId).once('value');
+        }).then(function(snap){
+          if(snap.exists()) renderOrder(snap.val());
+          else showError('❌ الطلب غير موجود', 'رقم الطلب: ' + orderId);
+        }).catch(function(err2){
+          showError('❌ خطأ في التحميل', err2.message || 'تعذّر الاتصال');
+        });
+      }, 1500);
+    } else {
+      showError('❌ خطأ في التحميل', msg);
+    }
   });
 
   // أولاً: نجرب نجيب الصور من cake_images/ORDER_ID

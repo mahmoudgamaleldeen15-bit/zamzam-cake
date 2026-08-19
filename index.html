@@ -847,6 +847,11 @@ input::placeholder, textarea::placeholder { color:#9b8e8e !important; opacity:1;
         <div id="adminDateResults" style="margin-top:8px"></div>
       </div>
       <div id="adminOrders" style="font-size:13px;color:var(--text2)">جاري التحميل...</div>
+      <!-- أزرار الأرشيف -->
+      <div style="display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:2px dashed var(--border)">
+        <button onclick="archiveOldOrders()" id="archiveBtn" style="flex:1;padding:10px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif">📦 أرشفة الطلبات القديمة</button>
+        <button onclick="openArchiveViewer()" style="flex:1;padding:10px;background:linear-gradient(135deg,#475569,#334155);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Cairo',sans-serif;position:relative">📂 عرض الأرشيف <span id="archiveCountBadge" style="display:none;background:#f59e0b;color:#fff;border-radius:100px;padding:1px 6px;font-size:10px;font-weight:900;margin-right:4px"></span></button>
+      </div>
     </div>
 
     <!-- RATINGS TAB -->
@@ -14008,6 +14013,302 @@ function stSubmit(){
   window.saveOrderImages     = saveOrderImages;
   window.extractOrderImages  = extractOrderImages;
   window.getResumeUrl        = getResumeUrl;
+
+})();
+</script>
+
+<!-- ============================================================
+     📦 نظام أرشفة الطلبات القديمة
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  var ARCHIVE_DAYS = 3; // أرشفة الطلبات الأقدم من 3 أيام
+
+  // ==========================================================
+  // 🔍 تحديد الطلبات المؤهلة للأرشفة
+  // ==========================================================
+  function _getArchivableOrders(){
+    var orders = [];
+    try{
+      if(typeof _rtMap !== 'undefined' && _rtMap && Object.keys(_rtMap).length){
+        orders = Object.keys(_rtMap).map(function(k){ return _rtMap[k]; });
+      }else{
+        orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      }
+    }catch(e){ orders = []; }
+
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - ARCHIVE_DAYS);
+    cutoff.setHours(0,0,0,0);
+
+    return orders.filter(function(o){
+      if(!o || !o.id) return false;
+      if(o.cancelled) return false;
+      // تاريخ الاستلام أقدم من 3 أيام
+      var d = new Date(o.clientDate || o.createdAt || '');
+      if(isNaN(d.getTime())) return false;
+      if(d >= cutoff) return false;
+      // مدفوع بالكامل
+      var price = parseFloat(o.finalPrice) || 0;
+      var dep   = parseFloat(o.deposit) || 0;
+      if(price <= 0) return true; // مفيش سعر = مش محتاج دفع
+      if(o.balanceSettled) return true;
+      if((price - dep) <= 0) return true;
+      return false; // لسه فيه باقي
+    });
+  }
+
+  // ==========================================================
+  // 📦 أرشفة — نقل من cake_orders → cake_archive
+  // ==========================================================
+  function archiveOldOrders(){
+    var eligible = _getArchivableOrders();
+    if(!eligible.length){
+      if(typeof showToast==='function') showToast('✅ مفيش طلبات جاهزة للأرشفة — كل الطلبات حديثة أو فيها بواقي');
+      return;
+    }
+
+    var msg = '📦 هل تريد أرشفة '+eligible.length+' طلب؟\n\n';
+    msg += 'الشروط:\n';
+    msg += '• تاريخ الاستلام أقدم من '+ARCHIVE_DAYS+' أيام\n';
+    msg += '• مدفوع بالكامل (مفيش بواقي)\n\n';
+    msg += 'الأرشفة بتنقل الطلبات لقسم منفصل — تقدر تسترجعها في أي وقت.';
+    if(!confirm(msg)) return;
+
+    if(typeof cakeDb === 'undefined' || !cakeDb){
+      if(typeof showToast==='function') showToast('❌ Firebase مش متصل');
+      return;
+    }
+
+    var batch = {};
+    var deleteKeys = [];
+    eligible.forEach(function(o){
+      // نسخ للأرشيف
+      var archived = Object.assign({}, o);
+      archived.archivedAt = new Date().toISOString();
+      archived.archivedBy = localStorage.getItem('zz_cake_admin_name') || 'الأدمن';
+      batch['cake_archive/' + o.id] = archived;
+      // حذف من الأصلي
+      batch['cake_orders/' + o.id] = null;
+      deleteKeys.push(o.id);
+    });
+
+    // عملية واحدة atomic
+    cakeDb.ref().update(batch).then(function(){
+      // حذف من localStorage كمان
+      try{
+        var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+        local = local.filter(function(o){ return deleteKeys.indexOf(o.id) === -1; });
+        localStorage.setItem('zz_cake_orders', JSON.stringify(local));
+      }catch(e){}
+      // حذف من _rtMap
+      try{
+        if(typeof _rtMap !== 'undefined' && _rtMap){
+          deleteKeys.forEach(function(k){ delete _rtMap[k]; });
+        }
+      }catch(e){}
+
+      if(typeof showToast==='function') showToast('✅ تم أرشفة '+eligible.length+' طلب بنجاح');
+      if(typeof loadAdminOrders==='function') loadAdminOrders();
+      _updateArchiveBadge();
+    }).catch(function(err){
+      if(typeof showToast==='function') showToast('❌ فشل الأرشفة: '+(err.message||''));
+    });
+  }
+
+  // ==========================================================
+  // 📂 عرض الأرشيف (Modal)
+  // ==========================================================
+  function openArchiveViewer(){
+    if(typeof cakeDb === 'undefined' || !cakeDb){
+      if(typeof showToast==='function') showToast('❌ Firebase مش متصل');
+      return;
+    }
+    // نجيب كل الأرشيف من Firebase
+    cakeDb.ref('cake_archive').orderByChild('archivedAt').once('value').then(function(snap){
+      var archived = [];
+      if(snap.exists()){
+        snap.forEach(function(c){ var v=c.val(); if(v) archived.push(v); });
+      }
+      archived.sort(function(a,b){ return (b.archivedAt||'').localeCompare(a.archivedAt||''); });
+      _renderArchiveModal(archived);
+    }).catch(function(err){
+      if(typeof showToast==='function') showToast('❌ تعذّر تحميل الأرشيف: '+(err.message||''));
+    });
+  }
+
+  function _renderArchiveModal(archived){
+    // إغلاق لو موجود
+    var old = document.getElementById('archiveOverlay');
+    if(old) old.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'archiveOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:var(--cream,#fff5f0);z-index:9998;overflow-y:auto;padding:12px;direction:rtl;font-family:Cairo,sans-serif';
+
+    // فلتر بحث
+    var searchVal = '';
+    function buildContent(filter){
+      var filtered = archived;
+      if(filter){
+        var q = filter.toLowerCase().trim();
+        filtered = archived.filter(function(o){
+          return ((o.clientName||'').toLowerCase().indexOf(q)>-1) ||
+                 ((o.clientPhone||'').indexOf(q)>-1) ||
+                 ((o.id||'').toLowerCase().indexOf(q)>-1) ||
+                 ((o.clientDate||'').indexOf(q)>-1);
+        });
+      }
+
+      var html = '';
+      // الهيدر
+      html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;position:sticky;top:0;background:var(--cream,#fff5f0);padding-bottom:8px;border-bottom:1px solid #ddd;z-index:2">';
+      html += '<button onclick="closeArchiveViewer()" style="background:#f5f5f5;border:1.5px solid #ddd;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;color:#666;cursor:pointer;font-family:Cairo,sans-serif">← رجوع</button>';
+      html += '<div style="font-size:15px;font-weight:900;color:#7c3aed">📂 الأرشيف ('+archived.length+' طلب)</div>';
+      html += '</div>';
+      // بحث
+      html += '<input type="text" id="archiveSearchInput" value="'+(searchVal||'').replace(/"/g,'&quot;')+'" placeholder="🔍 بحث بالاسم / الهاتف / رقم الطلب / التاريخ" oninput="__archiveSearch(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-family:Cairo,sans-serif;margin-bottom:12px"/>';
+      // ملخص
+      html += '<div style="background:#f5f3ff;border:1.5px solid #c4b5fd;border-radius:10px;padding:10px;margin-bottom:12px;text-align:center;font-size:12px;color:#6d28d9;font-weight:700">';
+      html += '📦 إجمالي: '+archived.length+' طلب مؤرشف';
+      if(filter) html += ' · عرض: '+filtered.length;
+      html += '</div>';
+
+      if(!filtered.length){
+        html += '<div style="text-align:center;padding:40px;color:#999"><div style="font-size:48px">📭</div><div style="margin-top:8px;font-size:14px;font-weight:800">'+(filter?'مفيش نتائج للبحث':'الأرشيف فارغ')+'</div></div>';
+      }else{
+        filtered.forEach(function(o){
+          var idShort = (o.id||'').replace(/^cake_/i,'').replace(/^CAKE-/,'').substring(0,12);
+          var price = parseFloat(o.finalPrice)||0;
+          var dep = parseFloat(o.deposit)||0;
+          var branchMap = {factory:'المصنع',main:'الرئيسي',shobramlees:'شبراملس',delivery:'توصيل',pickup:'المصنع'};
+          var branch = branchMap[o.orderType] || o.otherBranch || o.orderType || '—';
+          var archDate = (o.archivedAt||'').substring(0,10);
+
+          html += '<div style="background:#fff;border:1.5px solid #e9d5ff;border-radius:12px;padding:12px;margin-bottom:10px;border-right:5px solid #7c3aed">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px;margin-bottom:6px">';
+          html += '<div><div style="font-size:14px;font-weight:900;color:#111">'+(o.clientName||'-')+'</div>';
+          html += '<div style="font-size:11px;color:#999">#'+idShort+' · '+(o.clientPhone||'-')+'</div></div>';
+          html += '<div style="text-align:center;font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;border-radius:8px;padding:4px 8px">📦 أُرشف<br/>'+archDate+'</div>';
+          html += '</div>';
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px;color:#555;margin-bottom:8px">';
+          html += '<div>📅 '+(o.clientDate||'-')+'</div>';
+          html += '<div>🏪 '+branch+'</div>';
+          html += '<div>💰 '+price+' ج</div>';
+          html += '</div>';
+          html += '<button onclick="restoreFromArchive(\''+o.id+'\')" style="width:100%;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif">🔄 استرجاع من الأرشيف</button>';
+          html += '</div>';
+        });
+      }
+      return html;
+    }
+
+    overlay.innerHTML = buildContent('');
+
+    // بحث
+    window.__archiveSearch = function(q){
+      searchVal = q;
+      var cont = document.getElementById('archiveOverlay');
+      if(cont) cont.innerHTML = buildContent(q);
+      // إرجاع الفوكس
+      setTimeout(function(){
+        var el = document.getElementById('archiveSearchInput');
+        if(el){ el.focus(); el.setSelectionRange(q.length, q.length); }
+      }, 30);
+    };
+
+    document.body.appendChild(overlay);
+  }
+
+  function closeArchiveViewer(){
+    var el = document.getElementById('archiveOverlay');
+    if(el) el.remove();
+  }
+
+  // ==========================================================
+  // 🔄 استرجاع طلب من الأرشيف
+  // ==========================================================
+  function restoreFromArchive(orderId){
+    if(!confirm('🔄 استرجاع الطلب من الأرشيف؟\nهيرجع يظهر في قائمة الطلبات.')) return;
+    if(typeof cakeDb === 'undefined' || !cakeDb) return;
+
+    // نجيب الطلب من الأرشيف
+    cakeDb.ref('cake_archive/'+orderId).once('value').then(function(snap){
+      if(!snap.exists()){
+        if(typeof showToast==='function') showToast('❌ الطلب مش موجود في الأرشيف');
+        return;
+      }
+      var o = snap.val();
+      // نشيل بيانات الأرشفة
+      delete o.archivedAt;
+      delete o.archivedBy;
+      o.restoredAt = new Date().toISOString();
+
+      // نقل: حفظ في cake_orders + حذف من cake_archive
+      var batch = {};
+      batch['cake_orders/' + orderId] = o;
+      batch['cake_archive/' + orderId] = null;
+
+      cakeDb.ref().update(batch).then(function(){
+        // إضافة في localStorage
+        try{
+          var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+          var light = Object.assign({}, o);
+          delete light.imgBase64; delete light.paymentProof; delete light.orderImages;
+          local.unshift(light);
+          localStorage.setItem('zz_cake_orders', JSON.stringify(local.slice(0,200)));
+        }catch(e){}
+
+        if(typeof showToast==='function') showToast('✅ تم استرجاع الطلب — رجع في قائمة الطلبات');
+        // نحدث المحتوى
+        closeArchiveViewer();
+        openArchiveViewer(); // نعيد فتح عشان يتحدث
+        if(typeof loadAdminOrders==='function') loadAdminOrders();
+        _updateArchiveBadge();
+      }).catch(function(err){
+        if(typeof showToast==='function') showToast('❌ فشل الاسترجاع: '+(err.message||''));
+      });
+    });
+  }
+
+  // ==========================================================
+  // 🔢 تحديث Badge عدد الأرشيف
+  // ==========================================================
+  function _updateArchiveBadge(){
+    if(typeof cakeDb === 'undefined' || !cakeDb) return;
+    cakeDb.ref('cake_archive').once('value').then(function(snap){
+      var count = snap.exists() ? snap.numChildren() : 0;
+      var badge = document.getElementById('archiveCountBadge');
+      if(badge){
+        if(count > 0){
+          badge.textContent = count > 99 ? '99+' : count;
+          badge.style.display = 'inline';
+        }else{
+          badge.style.display = 'none';
+        }
+      }
+      // تحديث زر الأرشفة بعدد المؤهل
+      var archBtn = document.getElementById('archiveBtn');
+      if(archBtn){
+        var eligible = _getArchivableOrders().length;
+        archBtn.innerHTML = '📦 أرشفة الطلبات القديمة' + (eligible > 0 ? ' <span style="background:#fff;color:#7c3aed;border-radius:100px;padding:1px 6px;font-size:10px;font-weight:900;margin-right:4px">'+eligible+'</span>' : '');
+      }
+    }).catch(function(){});
+  }
+
+  // تحديث كل 30 ثانية
+  setInterval(_updateArchiveBadge, 30000);
+  setTimeout(_updateArchiveBadge, 2000);
+
+  // ==========================================================
+  // 🔓 كشف الفانكشنز
+  // ==========================================================
+  window.archiveOldOrders    = archiveOldOrders;
+  window.openArchiveViewer   = openArchiveViewer;
+  window.closeArchiveViewer  = closeArchiveViewer;
+  window.restoreFromArchive  = restoreFromArchive;
 
 })();
 </script>

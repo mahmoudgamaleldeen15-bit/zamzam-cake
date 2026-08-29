@@ -12305,7 +12305,7 @@ function adminStatusFilter(status) {
   window.__adminStatus = status;
   _renderAdminStatusBtns();
   var cls = window.__adminClass || 'all';
-  // نجيب كل الطلبات (من كل المصادر)
+  // نجيب كل الطلبات من كل المصادر
   var orders = [];
   try{
     if(typeof _rtMap !== 'undefined' && _rtMap && Object.keys(_rtMap).length){
@@ -12320,39 +12320,31 @@ function adminStatusFilter(status) {
   if (cls==='normal')   orders = orders.filter(function(o){ return o.orderClass!=='special'; });
   else if (cls==='special') orders = orders.filter(function(o){ return o.orderClass==='special'; });
   if (status !== 'all') orders = orders.filter(function(o){ return _getOrderStatus(o) === status; });
-  // نمنع الـ wrapper من إعادة الفلترة
-  window.__skipStatusFilter = true;
   renderAdminOrders(orders);
-  window.__skipStatusFilter = false;
 }
 
-// ✅ Wrap renderAdminOrders — يطبق الفلتر تلقائياً عند تحميل الطلبات
-// (لما loadAdminOrders تنادي renderAdminOrders بكل الطلبات)
+// ✅ بدل wrapper معقد — نخلي loadAdminOrders تنادي adminStatusFilter بعد التحميل
 (function(){
-  function _applyWrap(){
-    if(typeof renderAdminOrders !== 'function') return;
-    if(renderAdminOrders.__statusFilterWrapped) return;
-    var orig = renderAdminOrders;
-    renderAdminOrders = function(orders){
-      // لو adminStatusFilter هي اللي نادتنا — ما نفلترش تاني
-      if(window.__skipStatusFilter) return orig.call(this, orders);
+  function _hookLoadAdmin(){
+    if(typeof window.loadAdminOrders !== 'function') return;
+    if(window.loadAdminOrders.__filterHooked) return;
+    var orig = window.loadAdminOrders;
+    window.loadAdminOrders = function(){
+      var r = orig.apply(this, arguments);
+      // بعد ما loadAdminOrders تخلص (وتملأ _adminOrdersCache) — نطبق الفلتر
       var status = window.__adminStatus || 'all';
-      var cls = window.__adminClass || 'all';
-      if(status === 'all' && cls === 'all') return orig.call(this, orders);
-      if(Array.isArray(orders)){
-        var filtered = orders.filter(function(o){ return o && !o.cancelled; });
-        if(cls === 'normal')  filtered = filtered.filter(function(o){ return o.orderClass !== 'special'; });
-        else if(cls === 'special') filtered = filtered.filter(function(o){ return o.orderClass === 'special'; });
-        if(status !== 'all')  filtered = filtered.filter(function(o){ return _getOrderStatus(o) === status; });
-        return orig.call(this, filtered);
+      if(status !== 'all'){
+        // نستنى شوية عشان Firebase يرد والـ cache يتملى
+        setTimeout(function(){
+          adminStatusFilter(status);
+        }, 800);
       }
-      return orig.apply(this, arguments);
+      return r;
     };
-    renderAdminOrders.__statusFilterWrapped = true;
+    window.loadAdminOrders.__filterHooked = true;
   }
-  _applyWrap();
-  // إعادة التطبيق لو الفانكشن اتعادت تعريف
-  setInterval(_applyWrap, 2000);
+  _hookLoadAdmin();
+  setInterval(_hookLoadAdmin, 2000);
 })();
 </script>
 

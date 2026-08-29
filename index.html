@@ -2004,7 +2004,8 @@ function saveOrderPricing(orderId) {
     walletName: wallets[walletIdx]?wallets[walletIdx].name:'',
     walletNum: wallets[walletIdx]?wallets[walletIdx].num:'',
     walletMgr: wallets[walletIdx]?wallets[walletIdx].mgr:'',
-    pricedAt: new Date().toISOString()
+    pricedAt: new Date().toISOString(),
+    sentToTrackerAt: new Date().toISOString()
   };
 
   // Update local
@@ -14668,6 +14669,77 @@ function stSubmit(){
   setTimeout(_setupBulkWaMO, 1500);
 
   window.sendBulkBalanceWhatsApp = sendBulkBalanceWhatsApp;
+})();
+</script>
+
+<!-- ============================================================
+     ✅ تحسين زر "حفظ وإرسال للمتابع" + إظهار حالة الإرسال
+     ============================================================ -->
+<script>
+(function(){
+  'use strict';
+
+  // Wrap saveOrderPricing — بعد الحفظ نغيّر شكل الزر
+  function _wrapSaveOrderPricing(){
+    if(typeof window.saveOrderPricing !== 'function') return;
+    if(window.saveOrderPricing.__uiWrapped) return;
+    var orig = window.saveOrderPricing;
+    window.saveOrderPricing = function(orderId){
+      var r = orig.apply(this, arguments);
+      // نغيّر الزر فوراً
+      var btns = document.querySelectorAll('button[onclick*="saveOrderPricing(\''+orderId+'\')"]');
+      btns.forEach(function(btn){
+        btn.textContent = '✅ تم الإرسال للمتابع';
+        btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.8';
+      });
+      return r;
+    };
+    window.saveOrderPricing.__uiWrapped = true;
+  }
+  setTimeout(_wrapSaveOrderPricing, 300);
+  setInterval(_wrapSaveOrderPricing, 2000);
+
+  // عند تحميل البطاقات — لو الطلب مرسل للمتابع بالفعل، نغيّر الزر
+  function _markSentButtons(){
+    var container = document.getElementById('adminOrders');
+    if(!container) return;
+    var cards = container.querySelectorAll('button[onclick*="saveOrderPricing"]');
+    cards.forEach(function(btn){
+      if(btn.getAttribute('data-sent-marked')) return;
+      var m = btn.getAttribute('onclick').match(/saveOrderPricing\('([^']+)'\)/);
+      if(!m) return;
+      var orderId = m[1];
+      // نشوف لو الطلب مرسل
+      var o = null;
+      try{
+        if(typeof _rtMap !== 'undefined' && _rtMap && _rtMap[orderId]) o = _rtMap[orderId];
+        if(!o){
+          var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+          o = local.find(function(x){ return x.id === orderId; });
+        }
+      }catch(e){}
+      if(o && o.sentToTrackerAt){
+        btn.textContent = '✅ تم الإرسال للمتابع';
+        btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+      }
+      btn.setAttribute('data-sent-marked','1');
+    });
+  }
+
+  // Observer
+  function _setupSentMO(){
+    var container = document.getElementById('adminOrders');
+    if(!container || container.__sentMO) return;
+    var mo = new MutationObserver(function(){ _markSentButtons(); });
+    mo.observe(container, { childList: true, subtree: true });
+    container.__sentMO = mo;
+    _markSentButtons();
+  }
+  setInterval(_setupSentMO, 3000);
+  setTimeout(_setupSentMO, 1000);
+
 })();
 </script>
 </body>

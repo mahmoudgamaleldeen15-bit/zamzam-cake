@@ -14777,125 +14777,130 @@ function stSubmit(){
 </script>
 
 <!-- ============================================================
-     🔄 نظام حالات الأزرار — الحالة تتحفظ أولاً ثم الفانكشن تشتغل
+     🔄 نظام حالات الأزرار — حالة منفصلة لا تتأثر بإعادة التحميل
      ============================================================ -->
 <script>
 (function(){
   'use strict';
 
-  function _getOrder(oid){
-    try{
-      if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) return _rtMap[oid];
-      var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-      return l.find(function(x){return x.id===oid;});
-    }catch(e){ return null; }
+  // 🗄️ حالة مستقلة — لا يمسحها loadAdminOrders أو _rtMap
+  var STATE_KEY = 'zz_cake_btn_states';
+  function _loadStates(){ try{ return JSON.parse(localStorage.getItem(STATE_KEY)||'{}'); }catch(e){ return {}; } }
+  function _saveState(oid, field){
+    var s = _loadStates();
+    if(!s[oid]) s[oid] = {};
+    s[oid][field] = new Date().toISOString();
+    localStorage.setItem(STATE_KEY, JSON.stringify(s));
+    // Firebase كمان (async)
+    if(typeof cakeDb!=='undefined'&&cakeDb){
+      var p={}; p[field]=s[oid][field];
+      cakeDb.ref('cake_orders/'+oid).update(p).catch(function(){});
+    }
   }
-
-  function _saveField(oid, patch){
-    // localStorage أولاً (synchronous)
+  function _getState(oid){
+    // أولاً: الحالة المحلية المستقلة
+    var s = _loadStates();
+    if(s[oid]) return s[oid];
+    // ثانياً: من بيانات الطلب
     try{
-      var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-      var i=l.findIndex(function(x){return x.id===oid;});
-      if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));}
+      if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]){
+        var o=_rtMap[oid];
+        return {sentToClientAt:o.sentToClientAt,sentToTrackerAt:o.sentToTrackerAt,lastEditedAt:o.lastEditedAt};
+      }
     }catch(e){}
-    // _rtMap
-    try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) Object.assign(_rtMap[oid],patch);}catch(e){}
-    // Firebase (async)
-    if(typeof cakeDb!=='undefined'&&cakeDb) cakeDb.ref('cake_orders/'+oid).update(patch).catch(function(){});
+    return {};
   }
 
-  // ✅ 1) adminOrderSendToClient — حفظ الحالة قبل النداء
-  function _wrapSendClient(){
-    if(typeof window.adminOrderSendToClient!=='function') return;
-    if(window.adminOrderSendToClient.__v2) return;
-    var orig=window.adminOrderSendToClient;
-    window.adminOrderSendToClient=function(oid){
-      _saveField(oid, {sentToClientAt:new Date().toISOString()});
-      return orig.apply(this,arguments);
+  // ✅ Wrap الفانكشنز — يحفظ الحالة قبل النداء
+  // نستخدم WeakMap-like approach عشان نتعامل مع إعادة التعريف
+  var _wrappedRefs = {};
+  function _wrap(fnName, field, flag){
+    if(typeof window[fnName]!=='function') return;
+    // لو الفانكشن اتغيرت (إعادة تعريف) — نلف التانية
+    var current = window[fnName];
+    if(_wrappedRefs[flag] === current) return; // نفس النسخة المغلفة
+    // لو الفانكشن الأصلية (مش ملفوفة)
+    var orig = current;
+    var wrapped = function(){
+      var oid = arguments[0];
+      if(oid && typeof oid === 'string'){
+        _saveState(oid, field);
+        console.log('🔄 '+fnName+': saved '+field+' for '+oid);
+      }
+      return orig.apply(this, arguments);
     };
-    window.adminOrderSendToClient.__v2=true;
+    wrapped[flag] = true;
+    window[fnName] = wrapped;
+    _wrappedRefs[flag] = wrapped;
   }
 
-  // ✅ 2) saveOrderPricing — sentToTrackerAt (النسخة الأولى ممكن ما تسجلهاش)
-  function _wrapPricing(){
-    if(typeof window.saveOrderPricing!=='function') return;
-    if(window.saveOrderPricing.__v2) return;
-    var orig=window.saveOrderPricing;
-    window.saveOrderPricing=function(oid){
-      _saveField(oid, {sentToTrackerAt:new Date().toISOString()});
-      return orig.apply(this,arguments);
-    };
-    window.saveOrderPricing.__v2=true;
+  function _applyWraps(){
+    _wrap('adminOrderSendToClient', 'sentToClientAt', '__st1');
+    _wrap('saveOrderPricing', 'sentToTrackerAt', '__st2');
+    _wrap('openAdminEditOrder', 'lastEditedAt', '__st3');
   }
 
-  // ✅ 3) openAdminEditOrder — lastEditedAt
-  function _wrapEdit(){
-    if(typeof window.openAdminEditOrder!=='function') return;
-    if(window.openAdminEditOrder.__v2) return;
-    var orig=window.openAdminEditOrder;
-    window.openAdminEditOrder=function(oid){
-      _saveField(oid, {lastEditedAt:new Date().toISOString()});
-      return orig.apply(this,arguments);
-    };
-    window.openAdminEditOrder.__v2=true;
-  }
-
-  // ✅ 4) تلوين الأزرار بعد كل رندر
-  function _colorButtons(){
+  // ✅ تلوين الأزرار
+  function _colorAll(){
     var c=document.getElementById('adminOrders');
     if(!c) return;
 
-    // --- إرسال للعميل ---
+    var states = _loadStates();
+    var stateCount = Object.keys(states).length;
+
+    // إرسال للعميل
     c.querySelectorAll('button[onclick*="adminOrderSendToClient"]').forEach(function(btn){
-      if(btn.getAttribute('data-v2')) return;
-      var m=(btn.getAttribute('onclick')||'').match(/adminOrderSendToClient\('([^']+)'\)/);
+      if(btn.getAttribute('data-st')) return;
+      var m=(btn.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if(!m) return;
-      var o=_getOrder(m[1]);
-      if(o && o.sentToClientAt){
-        if(o.lastEditedAt && o.lastEditedAt > o.sentToClientAt){
+      var oid = m[1];
+      var st = _getState(oid);
+      if(st.sentToClientAt){
+        if(st.lastEditedAt && st.lastEditedAt > st.sentToClientAt){
           btn.textContent='📤 إرسال الأوردر بعد التعديل للعميل';
           btn.style.cssText='padding:9px;background:#ea580c;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
         }else{
           btn.textContent='✅ تم الإرسال للعميل';
           btn.style.cssText='padding:9px;background:#16a34a;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
         }
+        console.log('🎨 Client btn colored for '+oid);
       }
-      btn.setAttribute('data-v2','1');
+      btn.setAttribute('data-st','1');
     });
 
-    // --- حفظ وإرسال للمتابع ---
+    // حفظ وإرسال للمتابع
     c.querySelectorAll('button[onclick*="saveOrderPricing"]').forEach(function(btn){
-      if(btn.getAttribute('data-v2')) return;
-      var m=(btn.getAttribute('onclick')||'').match(/saveOrderPricing\('([^']+)'\)/);
+      if(btn.getAttribute('data-st')) return;
+      var m=(btn.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
       if(!m) return;
-      var o=_getOrder(m[1]);
-      if(o && o.sentToTrackerAt){
-        if(o.lastEditedAt && o.lastEditedAt > o.sentToTrackerAt){
+      var oid = m[1];
+      var st = _getState(oid);
+      if(st.sentToTrackerAt){
+        if(st.lastEditedAt && st.lastEditedAt > st.sentToTrackerAt){
           btn.textContent='📤 إرسال الأوردر المعدل للمتابع';
           btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
         }else{
           btn.textContent='✅ تم الإرسال للمتابع';
           btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
         }
+        console.log('🎨 Tracker btn colored for '+oid);
       }
-      btn.setAttribute('data-v2','1');
+      btn.setAttribute('data-st','1');
     });
   }
 
-  // MutationObserver
-  function _setup(){
-    _wrapSendClient();
-    _wrapPricing();
-    _wrapEdit();
+  // MutationObserver + polling
+  function _init(){
+    _applyWraps();
     var c=document.getElementById('adminOrders');
-    if(c && !c.__btnV2){
-      new MutationObserver(function(){_colorButtons();}).observe(c,{childList:true,subtree:true});
-      c.__btnV2=true;
-      _colorButtons();
+    if(c && !c.__stMO){
+      new MutationObserver(function(){_colorAll();}).observe(c,{childList:true,subtree:true});
+      c.__stMO=true;
     }
+    _colorAll();
   }
-  setTimeout(_setup,500);
-  setInterval(_setup,2000);
+  setTimeout(_init,500);
+  setInterval(_init,2000);
 })();
 </script>
 </body>

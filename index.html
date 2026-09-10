@@ -4525,14 +4525,14 @@ function printTodayOrders() {
     // ✅ لو فيه طلبات أخرى نعرضها دايماً (سواء مع تورتة أو لوحدها)
     var hasCake = !!(o.size);
     var otherItems = '';
-    if(o.otherItems && Array.isArray(o.otherItems)){
-      otherItems = o.otherItems.map(function(it){ return (it.name||'')+(it.qty?' ×'+it.qty:'')+(it.note?' ('+it.note+')':''); }).join(' + ');
-    }else if(o.otherItems && typeof o.otherItems === 'string'){
-      otherItems = o.otherItems;
+    if(o.items && Array.isArray(o.items) && o.items.length){
+      otherItems = o.items.map(function(it){
+        var u = (it.unit==='kilo') ? 'كيلو' : 'قطعة';
+        return (it.name||'') + ' (' + (it.qty||1) + ' ' + u + ')';
+      }).join(' + ');
     }
-    if(o.otherText) otherItems = (otherItems ? otherItems+' + ' : '') + o.otherText;
     // الطلبات الأخرى تظهر في الوصف دايماً (مع تورتة أو بدون)
-    if(otherItems) descParts.unshift('📦 '+otherItems);
+    if(otherItems) descParts.unshift('📦 ' + otherItems);
     if(!hasCake && !otherItems && o.occasion) descParts.unshift(o.occasion);
     var descCell = descParts.length ? descParts.join(' | ') : '-';
 
@@ -5841,16 +5841,16 @@ function printOrdersTable(orders, dateStr){
     var descParts = [];
     if (o.desc) descParts.push('وصف: '+o.desc);
     if (o.dedicationText) descParts.push('إهداء: '+o.dedicationText);
-    // ✅ طلبات أخرى بدون تورتة
+    // ✅ طلبات أخرى — الحقل الصحيح هو o.items
     var hasCake = !!(o.size);
     var otherItems = '';
-    if(o.otherItems && Array.isArray(o.otherItems)){
-      otherItems = o.otherItems.map(function(it){ return (it.name||'')+(it.qty?' ×'+it.qty:'')+(it.note?' ('+it.note+')':''); }).join(' + ');
-    }else if(o.otherItems && typeof o.otherItems === 'string'){
-      otherItems = o.otherItems;
+    if(o.items && Array.isArray(o.items) && o.items.length){
+      otherItems = o.items.map(function(it){
+        var u = (it.unit==='kilo') ? 'كيلو' : 'قطعة';
+        return (it.name||'') + ' (' + (it.qty||1) + ' ' + u + ')';
+      }).join(' + ');
     }
-    if(o.otherText) otherItems = (otherItems ? otherItems+' + ' : '') + o.otherText;
-    if(otherItems) descParts.unshift('📦 '+otherItems);
+    if(otherItems) descParts.unshift('📦 ' + otherItems);
     if(!hasCake && !otherItems && o.occasion) descParts.unshift(o.occasion);
     var descCell = descParts.length ? descParts.join(' | ') : '-';
 
@@ -14777,202 +14777,185 @@ function stSubmit(){
 </script>
 
 <!-- ============================================================
-     🔄 نظام حالات الأزرار (إرسال للعميل / حفظ / إرسال للمتابع)
+     🔄 نظام حالات الأزرار — نسخة مبسطة وأضمن
      ============================================================ -->
 <script>
 (function(){
   'use strict';
 
-  // ==========================================================
-  // 1) زر "إرسال للعميل للتأكيد" → بعد الإرسال يتحول + بعد التعديل يتغير
-  // ==========================================================
-  function _wrapSendToClient(){
-    if(typeof window.sendOrderConfirmToClient !== 'function') return;
-    if(window.sendOrderConfirmToClient.__stateWrapped) return;
-    var orig = window.sendOrderConfirmToClient;
-    window.sendOrderConfirmToClient = function(o){
+  // ✅ Wrap adminOrderSendToClient — يسجل sentToClientAt
+  function _wrapAdminSendClient(){
+    if(typeof window.adminOrderSendToClient !== 'function') return;
+    if(window.adminOrderSendToClient.__sw) return;
+    var orig = window.adminOrderSendToClient;
+    window.adminOrderSendToClient = function(orderId){
       var r = orig.apply(this, arguments);
-      // سجل إن الأوردر اتبعت للعميل
-      var orderId = (o && o.id) ? o.id : '';
-      if(orderId && typeof cakeDb !== 'undefined' && cakeDb){
-        cakeDb.ref('cake_orders/'+orderId).update({
-          sentToClientAt: new Date().toISOString()
-        }).catch(function(){});
+      if(orderId){
+        var patch = { sentToClientAt: new Date().toISOString() };
+        if(typeof cakeDb!=='undefined' && cakeDb) cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(){});
+        try{ var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]'); var i=l.findIndex(function(x){return x.id===orderId;}); if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));} }catch(e){}
+        try{ if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[orderId]) Object.assign(_rtMap[orderId],patch); }catch(e){}
       }
-      // تحديث localStorage كمان
-      try{
-        var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-        var idx = local.findIndex(function(x){ return x.id === orderId; });
-        if(idx > -1){ local[idx].sentToClientAt = new Date().toISOString(); localStorage.setItem('zz_cake_orders', JSON.stringify(local)); }
-      }catch(e){}
-      // غيّر شكل كل أزرار الإرسال للعميل لهذا الأوردر
-      _updateClientBtns(orderId, 'sent');
+      // غيّر الزر
+      var btn = document.querySelector('button[onclick*="adminOrderSendToClient(\''+orderId+'\')"]');
+      if(btn){ btn.textContent='✅ تم الإرسال للعميل'; btn.style.background='#16a34a'; btn.style.color='#fff'; btn.style.border='none'; }
       return r;
     };
-    window.sendOrderConfirmToClient.__stateWrapped = true;
+    window.adminOrderSendToClient.__sw = true;
   }
-  setTimeout(_wrapSendToClient, 500);
-  setInterval(_wrapSendToClient, 3000);
 
-  // 2) زر "تعديل الأوردر" → بعد التعديل يغيّر أزرار الإرسال
-  function _wrapEditOrder(){
+  // ✅ Wrap saveAdminOrder — يسجل sentToClientAt (عند send) + sentToTrackerAt + lastEditedAt
+  function _wrapSaveAdmin(){
+    if(typeof window.saveAdminOrder !== 'function') return;
+    if(window.saveAdminOrder.__btnStateW) return;
+    var orig = window.saveAdminOrder;
+    window.saveAdminOrder = function(action){
+      var r = orig.apply(this, arguments);
+      // نلاقي الأوردر اللي اتحفظ
+      try{
+        var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+        var o = orders[0];
+        if(!o) return r;
+        var oid = o.id;
+        var patch = {};
+        if(action === 'send'){
+          patch.sentToClientAt = new Date().toISOString();
+          if(typeof showToast==='function') showToast('✅ تم الإرسال للعميل');
+        }
+        if(action === 'save'){
+          // تم الحفظ — toast فقط
+        }
+        if(Object.keys(patch).length && typeof cakeDb!=='undefined' && cakeDb){
+          cakeDb.ref('cake_orders/'+oid).update(patch).catch(function(){});
+        }
+        // تحديث محلي
+        if(Object.keys(patch).length){
+          var idx = orders.findIndex(function(x){return x.id===oid;});
+          if(idx>-1){Object.assign(orders[idx],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(orders));}
+          try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) Object.assign(_rtMap[oid],patch);}catch(e){}
+        }
+      }catch(e){}
+      return r;
+    };
+    window.saveAdminOrder.__btnStateW = true;
+  }
+
+  // ✅ Wrap saveOrderPricing — يسجل sentToTrackerAt (موجود بالفعل)
+  // + يغيّر الزر بعد الحفظ
+  function _wrapSavePricing(){
+    if(typeof window.saveOrderPricing !== 'function') return;
+    if(window.saveOrderPricing.__btnW) return;
+    var orig = window.saveOrderPricing;
+    window.saveOrderPricing = function(orderId){
+      var r = orig.apply(this, arguments);
+      // غيّر كل أزرار الإرسال للمتابع
+      var btns = document.querySelectorAll('button[onclick*="saveOrderPricing(\''+orderId+'\')"]');
+      btns.forEach(function(btn){
+        btn.textContent = '✅ تم الإرسال للمتابع';
+        btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.85';
+      });
+      return r;
+    };
+    window.saveOrderPricing.__btnW = true;
+  }
+
+  // ✅ عند فتح الإديتور — نسجل lastEditedAt
+  function _wrapOpenEdit(){
     if(typeof window.openAdminEditOrder !== 'function') return;
-    if(window.openAdminEditOrder.__editStateWrapped) return;
+    if(window.openAdminEditOrder.__editW) return;
     var orig = window.openAdminEditOrder;
     window.openAdminEditOrder = function(orderId){
       var r = orig.apply(this, arguments);
-      // سجل إن الأوردر اتعدّل
-      if(orderId && typeof cakeDb !== 'undefined' && cakeDb){
-        cakeDb.ref('cake_orders/'+orderId).update({
-          lastEditedAt: new Date().toISOString()
-        }).catch(function(){});
+      if(orderId){
+        var patch = { lastEditedAt: new Date().toISOString() };
+        if(typeof cakeDb!=='undefined'&&cakeDb) cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(){});
+        try{var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');var i=l.findIndex(function(x){return x.id===orderId;});if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));}}catch(e){}
+        try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[orderId]) Object.assign(_rtMap[orderId],patch);}catch(e){}
       }
-      try{
-        var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-        var idx = local.findIndex(function(x){ return x.id === orderId; });
-        if(idx > -1){ local[idx].lastEditedAt = new Date().toISOString(); localStorage.setItem('zz_cake_orders', JSON.stringify(local)); }
-      }catch(e){}
       return r;
     };
-    window.openAdminEditOrder.__editStateWrapped = true;
-  }
-  setTimeout(_wrapEditOrder, 500);
-  setInterval(_wrapEditOrder, 3000);
-
-  // ==========================================================
-  // 3) حقن حالات الأزرار في البطاقات
-  // ==========================================================
-  function _updateClientBtns(orderId, state){
-    // state: 'sent' | 'edited'
-    document.querySelectorAll('button').forEach(function(btn){
-      var oc = btn.getAttribute('onclick')||'';
-      if(oc.indexOf('sendOrderConfirmToClient') === -1) return;
-      // نشوف لو الزر بتاع الأوردر ده
-      // الأزرار مش عليها orderId مباشرة — بنشوف الـ parent card
-      if(orderId && btn.closest){
-        var card = btn.closest('div[style*="border-radius:14px"]');
-        if(card && card.innerHTML.indexOf(orderId) === -1) return;
-      }
-      if(state === 'sent'){
-        btn.textContent = '✅ تم الإرسال للعميل';
-        btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-      }
-    });
+    window.openAdminEditOrder.__editW = true;
   }
 
-  function _markAllButtonStates(){
+  // ✅ تحديث شكل الأزرار في البطاقات حسب حالة الطلب
+  function _updateCardButtons(){
     var container = document.getElementById('adminOrders');
     if(!container) return;
 
-    var cards = container.querySelectorAll('div[style*="border-radius:14px"][style*="padding:14px"]');
-    cards.forEach(function(card){
-      if(card.getAttribute('data-btn-state') === '1') return;
+    // --- أزرار إرسال للعميل (في البطاقات) ---
+    container.querySelectorAll('button[onclick*="adminOrderSendToClient"]').forEach(function(btn){
+      if(btn.getAttribute('data-state-done')) return;
+      var m = (btn.getAttribute('onclick')||'').match(/adminOrderSendToClient\('([^']+)'\)/);
+      if(!m) return;
+      var oid = m[1];
+      var o = _getOrder(oid);
+      if(!o){ btn.setAttribute('data-state-done','1'); return; }
 
-      // نستخرج orderId
-      var orderId = null;
-      card.querySelectorAll('button[onclick]').forEach(function(btn){
-        var m = (btn.getAttribute('onclick')||'').match(/'([^']+)'/);
-        if(m) orderId = m[1];
-      });
-      if(!orderId){ card.setAttribute('data-btn-state','1'); return; }
-
-      // نجيب بيانات الأوردر
-      var o = null;
-      try{
-        if(typeof _rtMap !== 'undefined' && _rtMap && _rtMap[orderId]) o = _rtMap[orderId];
-        if(!o){
-          var local = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-          o = local.find(function(x){ return x.id === orderId; });
+      if(o.sentToClientAt){
+        if(o.lastEditedAt && o.lastEditedAt > o.sentToClientAt){
+          btn.textContent = '📤 إرسال الأوردر بعد التعديل للعميل';
+          btn.style.background = '#ea580c'; btn.style.color = '#fff'; btn.style.border = 'none';
+        }else{
+          btn.textContent = '✅ تم الإرسال للعميل';
+          btn.style.background = '#16a34a'; btn.style.color = '#fff'; btn.style.border = 'none';
         }
-      }catch(e){}
-      if(!o){ card.setAttribute('data-btn-state','1'); return; }
+      }
+      btn.setAttribute('data-state-done','1');
+    });
 
-      // --- زر إرسال للعميل ---
-      card.querySelectorAll('button').forEach(function(btn){
-        var txt = btn.textContent.trim();
+    // --- أزرار حفظ وإرسال للمتابع (في البطاقات) ---
+    container.querySelectorAll('button[onclick*="saveOrderPricing"]').forEach(function(btn){
+      if(btn.getAttribute('data-state-done')) return;
+      var m = (btn.getAttribute('onclick')||'').match(/saveOrderPricing\('([^']+)'\)/);
+      if(!m) return;
+      var oid = m[1];
+      var o = _getOrder(oid);
+      if(!o){ btn.setAttribute('data-state-done','1'); return; }
 
-        // زر إرسال للعميل
-        if(txt.indexOf('إرسال للعميل') > -1 && txt.indexOf('تم') === -1){
-          if(o.sentToClientAt){
-            // اتبعت قبل كده
-            if(o.lastEditedAt && o.lastEditedAt > o.sentToClientAt){
-              // اتعدّل بعد الإرسال
-              btn.textContent = '📤 إرسال الأوردر بعد التعديل للعميل';
-              btn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)';
-            }else{
-              btn.textContent = '✅ تم الإرسال للعميل';
-              btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-            }
-          }
+      if(o.sentToTrackerAt){
+        if(o.lastEditedAt && o.lastEditedAt > o.sentToTrackerAt){
+          btn.textContent = '📤 إرسال الأوردر المعدل للمتابع';
+          btn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)';
+          btn.style.pointerEvents = 'auto'; btn.style.opacity = '1';
+        }else{
+          btn.textContent = '✅ تم الإرسال للمتابع';
+          btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
         }
-
-        // زر حفظ وإرسال للمتابع
-        if(txt.indexOf('حفظ وإرسال للمتابع') > -1 || txt.indexOf('تم الإرسال للمتابع') > -1 || txt.indexOf('إرسال الأوردر المعدل للمتابع') > -1){
-          if(o.sentToTrackerAt){
-            if(o.lastEditedAt && o.lastEditedAt > o.sentToTrackerAt){
-              btn.textContent = '📤 إرسال الأوردر المعدل للمتابع';
-              btn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)';
-              btn.style.pointerEvents = 'auto';
-              btn.style.opacity = '1';
-            }else{
-              btn.textContent = '✅ تم الإرسال للمتابع';
-              btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-            }
-          }
-        }
-
-        // زر حفظ بس
-        if(txt.indexOf('حفظ بس') > -1 && txt.indexOf('تم') === -1){
-          // مش نغيره — بس نغيره بعد الضغط (handled below)
-        }
-      });
-
-      card.setAttribute('data-btn-state', '1');
+      }
+      btn.setAttribute('data-state-done','1');
     });
   }
 
-  // ==========================================================
-  // 4) زر "حفظ بس" → بعد الضغط يتحول لـ "✅ تم الحفظ"
-  // ==========================================================
-  function _wrapSaveOnly(){
-    if(typeof window.saveAdminOrder !== 'function') return;
-    if(window.saveAdminOrder.__saveOnlyWrapped) return;
-    var prev = window.saveAdminOrder;
-    window.saveAdminOrder = function(action){
-      var r = prev.apply(this, arguments);
-      if(action === 'save'){
-        // نلاقي زر "حفظ بس" ونغيره
-        document.querySelectorAll('button').forEach(function(btn){
-          if((btn.textContent||'').indexOf('حفظ بس') > -1){
-            btn.textContent = '✅ تم الحفظ';
-            btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-            btn.style.color = '#fff';
-            setTimeout(function(){
-              btn.textContent = '📋 حفظ بس (من غير إرسال للمتابع)';
-              btn.style.background = '';
-            }, 3000);
-          }
-        });
-      }
-      return r;
-    };
-    window.saveAdminOrder.__saveOnlyWrapped = true;
+  function _getOrder(oid){
+    try{
+      if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) return _rtMap[oid];
+      var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      return l.find(function(x){return x.id===oid;});
+    }catch(e){ return null; }
   }
-  setTimeout(_wrapSaveOnly, 600);
-  setInterval(_wrapSaveOnly, 3000);
 
   // Observer
-  function _setupBtnStateMO(){
-    var container = document.getElementById('adminOrders');
-    if(!container || container.__btnStateMO) return;
-    var mo = new MutationObserver(function(){ _markAllButtonStates(); });
-    mo.observe(container, { childList: true, subtree: true });
-    container.__btnStateMO = mo;
-    _markAllButtonStates();
+  function _setupBtnMO(){
+    var c = document.getElementById('adminOrders');
+    if(!c || c.__btnMO2) return;
+    var mo = new MutationObserver(function(){ _updateCardButtons(); });
+    mo.observe(c, { childList:true, subtree:true });
+    c.__btnMO2 = mo;
+    _updateCardButtons();
   }
-  setInterval(_setupBtnStateMO, 3000);
-  setTimeout(_setupBtnStateMO, 1200);
 
+  // تطبيق كل الـ wraps
+  function _applyAll(){
+    _wrapAdminSendClient();
+    _wrapSaveAdmin();
+    _wrapSavePricing();
+    _wrapOpenEdit();
+    _setupBtnMO();
+  }
+  setTimeout(_applyAll, 500);
+  setInterval(_applyAll, 2500);
 })();
 </script>
 </body>

@@ -14777,156 +14777,11 @@ function stSubmit(){
 </script>
 
 <!-- ============================================================
-     🔄 نظام حالات الأزرار — نسخة مبسطة وأضمن
+     🔄 نظام حالات الأزرار — الحالة تتحفظ أولاً ثم الفانكشن تشتغل
      ============================================================ -->
 <script>
 (function(){
   'use strict';
-
-  // ✅ Wrap adminOrderSendToClient — يسجل sentToClientAt
-  function _wrapAdminSendClient(){
-    if(typeof window.adminOrderSendToClient !== 'function') return;
-    if(window.adminOrderSendToClient.__sw) return;
-    var orig = window.adminOrderSendToClient;
-    window.adminOrderSendToClient = function(orderId){
-      var r = orig.apply(this, arguments);
-      if(orderId){
-        var patch = { sentToClientAt: new Date().toISOString() };
-        if(typeof cakeDb!=='undefined' && cakeDb) cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(){});
-        try{ var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]'); var i=l.findIndex(function(x){return x.id===orderId;}); if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));} }catch(e){}
-        try{ if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[orderId]) Object.assign(_rtMap[orderId],patch); }catch(e){}
-      }
-      // غيّر الزر
-      var btn = document.querySelector('button[onclick*="adminOrderSendToClient(\''+orderId+'\')"]');
-      if(btn){ btn.textContent='✅ تم الإرسال للعميل'; btn.style.background='#16a34a'; btn.style.color='#fff'; btn.style.border='none'; }
-      return r;
-    };
-    window.adminOrderSendToClient.__sw = true;
-  }
-
-  // ✅ Wrap saveAdminOrder — يسجل sentToClientAt (عند send) + sentToTrackerAt + lastEditedAt
-  function _wrapSaveAdmin(){
-    if(typeof window.saveAdminOrder !== 'function') return;
-    if(window.saveAdminOrder.__btnStateW) return;
-    var orig = window.saveAdminOrder;
-    window.saveAdminOrder = function(action){
-      var r = orig.apply(this, arguments);
-      // نلاقي الأوردر اللي اتحفظ
-      try{
-        var orders = JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
-        var o = orders[0];
-        if(!o) return r;
-        var oid = o.id;
-        var patch = {};
-        if(action === 'send'){
-          patch.sentToClientAt = new Date().toISOString();
-          if(typeof showToast==='function') showToast('✅ تم الإرسال للعميل');
-        }
-        if(action === 'save'){
-          // تم الحفظ — toast فقط
-        }
-        if(Object.keys(patch).length && typeof cakeDb!=='undefined' && cakeDb){
-          cakeDb.ref('cake_orders/'+oid).update(patch).catch(function(){});
-        }
-        // تحديث محلي
-        if(Object.keys(patch).length){
-          var idx = orders.findIndex(function(x){return x.id===oid;});
-          if(idx>-1){Object.assign(orders[idx],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(orders));}
-          try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) Object.assign(_rtMap[oid],patch);}catch(e){}
-        }
-      }catch(e){}
-      return r;
-    };
-    window.saveAdminOrder.__btnStateW = true;
-  }
-
-  // ✅ Wrap saveOrderPricing — يسجل sentToTrackerAt (موجود بالفعل)
-  // + يغيّر الزر بعد الحفظ
-  function _wrapSavePricing(){
-    if(typeof window.saveOrderPricing !== 'function') return;
-    if(window.saveOrderPricing.__btnW) return;
-    var orig = window.saveOrderPricing;
-    window.saveOrderPricing = function(orderId){
-      var r = orig.apply(this, arguments);
-      // غيّر كل أزرار الإرسال للمتابع
-      var btns = document.querySelectorAll('button[onclick*="saveOrderPricing(\''+orderId+'\')"]');
-      btns.forEach(function(btn){
-        btn.textContent = '✅ تم الإرسال للمتابع';
-        btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-        btn.style.pointerEvents = 'none';
-        btn.style.opacity = '0.85';
-      });
-      return r;
-    };
-    window.saveOrderPricing.__btnW = true;
-  }
-
-  // ✅ عند فتح الإديتور — نسجل lastEditedAt
-  function _wrapOpenEdit(){
-    if(typeof window.openAdminEditOrder !== 'function') return;
-    if(window.openAdminEditOrder.__editW) return;
-    var orig = window.openAdminEditOrder;
-    window.openAdminEditOrder = function(orderId){
-      var r = orig.apply(this, arguments);
-      if(orderId){
-        var patch = { lastEditedAt: new Date().toISOString() };
-        if(typeof cakeDb!=='undefined'&&cakeDb) cakeDb.ref('cake_orders/'+orderId).update(patch).catch(function(){});
-        try{var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');var i=l.findIndex(function(x){return x.id===orderId;});if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));}}catch(e){}
-        try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[orderId]) Object.assign(_rtMap[orderId],patch);}catch(e){}
-      }
-      return r;
-    };
-    window.openAdminEditOrder.__editW = true;
-  }
-
-  // ✅ تحديث شكل الأزرار في البطاقات حسب حالة الطلب
-  function _updateCardButtons(){
-    var container = document.getElementById('adminOrders');
-    if(!container) return;
-
-    // --- أزرار إرسال للعميل (في البطاقات) ---
-    container.querySelectorAll('button[onclick*="adminOrderSendToClient"]').forEach(function(btn){
-      if(btn.getAttribute('data-state-done')) return;
-      var m = (btn.getAttribute('onclick')||'').match(/adminOrderSendToClient\('([^']+)'\)/);
-      if(!m) return;
-      var oid = m[1];
-      var o = _getOrder(oid);
-      if(!o){ btn.setAttribute('data-state-done','1'); return; }
-
-      if(o.sentToClientAt){
-        if(o.lastEditedAt && o.lastEditedAt > o.sentToClientAt){
-          btn.textContent = '📤 إرسال الأوردر بعد التعديل للعميل';
-          btn.style.background = '#ea580c'; btn.style.color = '#fff'; btn.style.border = 'none';
-        }else{
-          btn.textContent = '✅ تم الإرسال للعميل';
-          btn.style.background = '#16a34a'; btn.style.color = '#fff'; btn.style.border = 'none';
-        }
-      }
-      btn.setAttribute('data-state-done','1');
-    });
-
-    // --- أزرار حفظ وإرسال للمتابع (في البطاقات) ---
-    container.querySelectorAll('button[onclick*="saveOrderPricing"]').forEach(function(btn){
-      if(btn.getAttribute('data-state-done')) return;
-      var m = (btn.getAttribute('onclick')||'').match(/saveOrderPricing\('([^']+)'\)/);
-      if(!m) return;
-      var oid = m[1];
-      var o = _getOrder(oid);
-      if(!o){ btn.setAttribute('data-state-done','1'); return; }
-
-      if(o.sentToTrackerAt){
-        if(o.lastEditedAt && o.lastEditedAt > o.sentToTrackerAt){
-          btn.textContent = '📤 إرسال الأوردر المعدل للمتابع';
-          btn.style.background = 'linear-gradient(135deg,#ea580c,#c2410c)';
-          btn.style.pointerEvents = 'auto'; btn.style.opacity = '1';
-        }else{
-          btn.textContent = '✅ تم الإرسال للمتابع';
-          btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
-        }
-      }
-      btn.setAttribute('data-state-done','1');
-    });
-  }
 
   function _getOrder(oid){
     try{
@@ -14936,26 +14791,111 @@ function stSubmit(){
     }catch(e){ return null; }
   }
 
-  // Observer
-  function _setupBtnMO(){
-    var c = document.getElementById('adminOrders');
-    if(!c || c.__btnMO2) return;
-    var mo = new MutationObserver(function(){ _updateCardButtons(); });
-    mo.observe(c, { childList:true, subtree:true });
-    c.__btnMO2 = mo;
-    _updateCardButtons();
+  function _saveField(oid, patch){
+    // localStorage أولاً (synchronous)
+    try{
+      var l=JSON.parse(localStorage.getItem('zz_cake_orders')||'[]');
+      var i=l.findIndex(function(x){return x.id===oid;});
+      if(i>-1){Object.assign(l[i],patch);localStorage.setItem('zz_cake_orders',JSON.stringify(l));}
+    }catch(e){}
+    // _rtMap
+    try{if(typeof _rtMap!=='undefined'&&_rtMap&&_rtMap[oid]) Object.assign(_rtMap[oid],patch);}catch(e){}
+    // Firebase (async)
+    if(typeof cakeDb!=='undefined'&&cakeDb) cakeDb.ref('cake_orders/'+oid).update(patch).catch(function(){});
   }
 
-  // تطبيق كل الـ wraps
-  function _applyAll(){
-    _wrapAdminSendClient();
-    _wrapSaveAdmin();
-    _wrapSavePricing();
-    _wrapOpenEdit();
-    _setupBtnMO();
+  // ✅ 1) adminOrderSendToClient — حفظ الحالة قبل النداء
+  function _wrapSendClient(){
+    if(typeof window.adminOrderSendToClient!=='function') return;
+    if(window.adminOrderSendToClient.__v2) return;
+    var orig=window.adminOrderSendToClient;
+    window.adminOrderSendToClient=function(oid){
+      _saveField(oid, {sentToClientAt:new Date().toISOString()});
+      return orig.apply(this,arguments);
+    };
+    window.adminOrderSendToClient.__v2=true;
   }
-  setTimeout(_applyAll, 500);
-  setInterval(_applyAll, 2500);
+
+  // ✅ 2) saveOrderPricing — sentToTrackerAt (النسخة الأولى ممكن ما تسجلهاش)
+  function _wrapPricing(){
+    if(typeof window.saveOrderPricing!=='function') return;
+    if(window.saveOrderPricing.__v2) return;
+    var orig=window.saveOrderPricing;
+    window.saveOrderPricing=function(oid){
+      _saveField(oid, {sentToTrackerAt:new Date().toISOString()});
+      return orig.apply(this,arguments);
+    };
+    window.saveOrderPricing.__v2=true;
+  }
+
+  // ✅ 3) openAdminEditOrder — lastEditedAt
+  function _wrapEdit(){
+    if(typeof window.openAdminEditOrder!=='function') return;
+    if(window.openAdminEditOrder.__v2) return;
+    var orig=window.openAdminEditOrder;
+    window.openAdminEditOrder=function(oid){
+      _saveField(oid, {lastEditedAt:new Date().toISOString()});
+      return orig.apply(this,arguments);
+    };
+    window.openAdminEditOrder.__v2=true;
+  }
+
+  // ✅ 4) تلوين الأزرار بعد كل رندر
+  function _colorButtons(){
+    var c=document.getElementById('adminOrders');
+    if(!c) return;
+
+    // --- إرسال للعميل ---
+    c.querySelectorAll('button[onclick*="adminOrderSendToClient"]').forEach(function(btn){
+      if(btn.getAttribute('data-v2')) return;
+      var m=(btn.getAttribute('onclick')||'').match(/adminOrderSendToClient\('([^']+)'\)/);
+      if(!m) return;
+      var o=_getOrder(m[1]);
+      if(o && o.sentToClientAt){
+        if(o.lastEditedAt && o.lastEditedAt > o.sentToClientAt){
+          btn.textContent='📤 إرسال الأوردر بعد التعديل للعميل';
+          btn.style.cssText='padding:9px;background:#ea580c;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
+        }else{
+          btn.textContent='✅ تم الإرسال للعميل';
+          btn.style.cssText='padding:9px;background:#16a34a;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
+        }
+      }
+      btn.setAttribute('data-v2','1');
+    });
+
+    // --- حفظ وإرسال للمتابع ---
+    c.querySelectorAll('button[onclick*="saveOrderPricing"]').forEach(function(btn){
+      if(btn.getAttribute('data-v2')) return;
+      var m=(btn.getAttribute('onclick')||'').match(/saveOrderPricing\('([^']+)'\)/);
+      if(!m) return;
+      var o=_getOrder(m[1]);
+      if(o && o.sentToTrackerAt){
+        if(o.lastEditedAt && o.lastEditedAt > o.sentToTrackerAt){
+          btn.textContent='📤 إرسال الأوردر المعدل للمتابع';
+          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
+        }else{
+          btn.textContent='✅ تم الإرسال للمتابع';
+          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
+        }
+      }
+      btn.setAttribute('data-v2','1');
+    });
+  }
+
+  // MutationObserver
+  function _setup(){
+    _wrapSendClient();
+    _wrapPricing();
+    _wrapEdit();
+    var c=document.getElementById('adminOrders');
+    if(c && !c.__btnV2){
+      new MutationObserver(function(){_colorButtons();}).observe(c,{childList:true,subtree:true});
+      c.__btnV2=true;
+      _colorButtons();
+    }
+  }
+  setTimeout(_setup,500);
+  setInterval(_setup,2000);
 })();
 </script>
 </body>

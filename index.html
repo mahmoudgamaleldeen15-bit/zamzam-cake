@@ -14816,23 +14816,16 @@ function stSubmit(){
   var _wrappedRefs = {};
   function _wrap(fnName, field, flag){
     if(typeof window[fnName]!=='function') return;
+    // لو الفانكشن اتغيرت (إعادة تعريف) — نلف التانية
     var current = window[fnName];
-    if(_wrappedRefs[flag] === current) return;
+    if(_wrappedRefs[flag] === current) return; // نفس النسخة المغلفة
+    // لو الفانكشن الأصلية (مش ملفوفة)
     var orig = current;
     var wrapped = function(){
       var oid = arguments[0];
       if(oid && typeof oid === 'string'){
         _saveState(oid, field);
-        // ✅ لو تعديل أوردر — نمسح data-st من كل أزرار الأوردر عشان تتلوّن تاني
-        if(field === 'lastEditedAt'){
-          var c = document.getElementById('adminOrders');
-          if(c) c.querySelectorAll('button[data-st]').forEach(function(btn){
-            var m = (btn.getAttribute('onclick')||'').match(/\('([^']+)'\)/);
-            if(m && m[1] === oid) btn.removeAttribute('data-st');
-          });
-          setTimeout(_colorAll, 1500);
-          setTimeout(_colorAll, 3000);
-        }
+        console.log('🔄 '+fnName+': saved '+field+' for '+oid);
       }
       return orig.apply(this, arguments);
     };
@@ -14849,10 +14842,12 @@ function stSubmit(){
     _wrap('saveOrderDraft', 'savedDraftAt', '__st5');
   }
 
-  // ✅ تلوين الأزرار — بدون تجاهل أي زر (يعالج الكل كل مرة)
+  // ✅ تلوين الأزرار
   function _colorAll(){
     var c=document.getElementById('adminOrders');
     if(!c) return;
+
+    var states = _loadStates();
 
     // إرسال للعميل
     c.querySelectorAll('button[onclick*="adminOrderSendToClient"]').forEach(function(btn){
@@ -14862,10 +14857,10 @@ function stSubmit(){
       if(st.sentToClientAt){
         if(st.lastEditedAt && st.lastEditedAt > st.sentToClientAt){
           btn.textContent='📤 إرسال الأوردر بعد التعديل للعميل';
-          btn.style.cssText='padding:9px;background:#ea580c;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif;opacity:1';
+          btn.style.cssText='padding:9px;background:#ea580c;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
         }else{
           btn.textContent='✅ تم الإرسال للعميل';
-          btn.style.cssText='padding:9px;background:#16a34a;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif;opacity:0.6;pointer-events:none';
+          btn.style.cssText='padding:9px;background:#16a34a;border:none;border-radius:8px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;font-family:Cairo,sans-serif';
         }
       }
     });
@@ -14877,11 +14872,11 @@ function stSubmit(){
       var st = _getState(m[1]);
       if(st.sentToTrackerAt){
         if(st.lastEditedAt && st.lastEditedAt > st.sentToTrackerAt){
-          btn.textContent='📤 حفظ التعديلات وإرسال للمتابع';
-          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif;opacity:1;pointer-events:auto';
+          btn.textContent='📤 إرسال الأوردر المعدل للمتابع';
+          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
         }else{
           btn.textContent='✅ تم الإرسال للمتابع';
-          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif;opacity:0.6;pointer-events:none';
+          btn.style.cssText='width:100%;padding:8px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:8px;font-size:12px;font-weight:800;border:none;cursor:pointer;font-family:Cairo,sans-serif';
         }
       }
     });
@@ -14894,10 +14889,10 @@ function stSubmit(){
       if(st.savedDraftAt){
         if(st.lastEditedAt && st.lastEditedAt > st.savedDraftAt){
           btn.textContent='💾 حفظ التعديلات (من غير إرسال للمتابع)';
-          btn.style.cssText='width:100%;padding:8px;background:#f59e0b;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px;opacity:1;pointer-events:auto';
+          btn.style.cssText='width:100%;padding:8px;background:#f59e0b;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px';
         }else{
-          btn.textContent='✅ تم الحفظ';
-          btn.style.cssText='width:100%;padding:8px;background:#16a34a;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px;opacity:0.6;pointer-events:none';
+          btn.textContent='✅ تم الحفظ (من غير إرسال للمتابع)';
+          btn.style.cssText='width:100%;padding:8px;background:#16a34a;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px';
         }
       }
     });
@@ -14910,10 +14905,10 @@ function stSubmit(){
       if(st.sentToChefAt){
         if(st.lastEditedAt && st.lastEditedAt > st.sentToChefAt){
           btn.textContent='👨‍🍳 إرسال طلب التورتة بعد التعديل للشيف';
-          btn.style.cssText='width:100%;padding:9px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px;opacity:1;pointer-events:auto';
+          btn.style.cssText='width:100%;padding:9px;background:linear-gradient(135deg,#ea580c,#c2410c);color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px';
         }else{
           btn.textContent='✅ تم إرسال طلب التورتة للشيف';
-          btn.style.cssText='width:100%;padding:9px;background:#16a34a;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px;opacity:0.6;pointer-events:none';
+          btn.style.cssText='width:100%;padding:9px;background:#16a34a;border:none;color:#fff;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;font-family:Cairo,sans-serif;margin-bottom:8px';
         }
       }
     });
@@ -14931,8 +14926,6 @@ function stSubmit(){
   }
   setTimeout(_init,500);
   setInterval(_init,2000);
-  // ✅ تلوين مستمر كل 1.5 ثانية عشان نمسك أي تغيير
-  setInterval(_colorAll, 1500);
 })();
 </script>
 </body>
